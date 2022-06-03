@@ -1,21 +1,24 @@
+'''
+(C) Dott. Daniel Rossi - Università degli Studi di Modena e Reggio Emilia
+    Computer Vision Project
+
+    Real Time Camera script for road analysis
+
+    Camera model: See3Cam_CU27 REV X1
+'''
+
 import cv2
+import time
 import numpy as np
+import keyboard
+
+from RTCamera import RTCamera
 
 CAMERA_DEVICE = 0
 TRESH_MODE = "ADAPTIVE_GAUSSIAN" # OTSU ADAPTIVE_GAUSSIAN ADAPTIVE_MEAN
 
 
-if __name__ == "__main__":
-    capture = cv2.VideoCapture(CAMERA_DEVICE)
-
-    capture.set(cv2.CAP_PROP_EXPOSURE, 20) 
-    capture.set(cv2.CAP_PROP_FPS, 30)
-    capture.set(cv2.CAP_PROP_GAIN, 20)
-    capture.set(cv2.CAP_PROP_CONVERT_RGB, 1)  
-
-    while True:
-        ret, img = capture.read()
-
+def processing(img: np.ndarray):
         gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
         blur = cv2.GaussianBlur(gray, (5, 5), 0)
         th = None
@@ -23,7 +26,7 @@ if __name__ == "__main__":
         if TRESH_MODE == "OTSU":
             ret, th = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         elif TRESH_MODE == "ADAPTIVE_GAUSSIAN":
-            th = cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 19, 4)
+            th = cv2.adaptqiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 19, 4)
         elif TRESH_MODE == "ADAPTIVE_MEAN":
             th = cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 11, 2)
 
@@ -36,8 +39,27 @@ if __name__ == "__main__":
         H_stack = np.hstack((rgb_blur, rgb_th, rgb_canny))
 
         cv2.imshow("images", H_stack)
-        if cv2.waitKey(10) == ord('q'):
+
+
+if __name__ == "__main__":
+    camera = RTCamera(CAMERA_DEVICE)
+    camera.start()
+
+    start_fps = time.time()
+    while True:
+        frame = camera.get_frame()
+        if camera.available():
+            cv2.imshow("frame", frame)
+
+            if time.time() - start_fps > 2:
+                fps = camera.get_fps()
+                if fps > 0:
+                    print(fps)
+                start_fps = time.time()
+            
+        if keyboard.is_pressed('q'):
             break
 
-capture.release()
-cv2.destroyAllWindows()
+    camera.stop()
+    cv2.destroyAllWindows()
+
