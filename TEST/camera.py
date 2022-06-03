@@ -46,16 +46,28 @@ if __name__ == "__main__":
     camera.start()
 
     start_fps = time.time()
+    fps = 0
     while True:
         frame = camera.get_frame()
         if camera.available():
+            cv2.putText(frame, str(fps) + " fps", (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 255, 0), 2, cv2.LINE_AA)
+            frame = cv2.resize(frame, (640,480))
             cv2.imshow("frame", frame)
 
             if time.time() - start_fps > 2:
                 fps = camera.get_fps()
-                if fps > 0:
-                    print(fps)
                 start_fps = time.time()
+
+            if keyboard.is_pressed('e'):
+                exp = int(input("please insert the exposure: "))
+                camera.set_exposure(exp)
+
+            if keyboard.is_pressed('g'):
+                gain = int(input("please insert the gain: "))
+                camera.set_gain(gain)
+
+            if keyboard.is_pressed('r'):
+                camera.register("output.mp4")
             
         if keyboard.is_pressed('q'):
             break
