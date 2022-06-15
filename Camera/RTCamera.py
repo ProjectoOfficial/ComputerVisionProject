@@ -7,7 +7,6 @@
     Camera model: See3Cam_CU27 REV X1
 '''
 
-import fractions
 import cv2
 from threading import Thread
 import time
@@ -32,6 +31,12 @@ class RTCamera(object):
 
         self.thread         = None
         self.thread_alive   = False
+
+        self.has_calibration    = False
+        self.mtx = None
+        self.dist = None
+        self.rvecs = None
+        self.tvecs = None
 
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 100)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.resolution[0])
@@ -77,7 +82,8 @@ class RTCamera(object):
 
         if self.frame is None:
             return None
-        return self.frame.copy()
+
+        return self.frame.copy() if self.has_calibration is False else self.__adjust_frame()
 
     def available(self):
         return self.frame is not None
@@ -118,3 +124,21 @@ class RTCamera(object):
             self.cap.set(cv2.CAP_PROP_GAIN, gain)
         except AssertionError:
             print("gain must be an integer number ")
+
+    def calibrate(self, calibrated, mtx, dist, rvecs, tvecs):
+        self.has_calibration = calibrated
+        self.mtx = mtx
+        self.dist = dist
+        self.rvecs = rvecs
+        self.tvecs = tvecs
+
+    def __adjust_frame(self):        
+        h, w = self.frame.shape[:2]
+        newcameramtx, roi = cv2.getOptimalNewCameraMatrix(self.mtx, self.dist, (w,h), 1, (w,h))
+        mapx, mapy = cv2.initUndistortRectifyMap(self.mtx, self.dist, None, newcameramtx, (w,h), 5)
+        dst = cv2.undistort(self.frame, self.mtx, self.dist, None, newcameramtx)
+        # crop the image
+        x, y, w, h = roi
+        dst = dst[y:y+h, x:x+w]
+
+        return dst.copy()

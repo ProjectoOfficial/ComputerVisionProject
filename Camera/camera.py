@@ -24,10 +24,11 @@ from RTCamera import RTCamera
 from pynput.keyboard import Listener
 
 from RTCamera import RTCamera
-import Geometry
+from Geometry import Geometry
 
 CAMERA_DEVICE = 1
 PRESSED_KEY = ''
+CALIBRATE = True
 
 def on_press(key):
     global PRESSED_KEY
@@ -56,6 +57,11 @@ if __name__ == "__main__":
     start_fps = time.time()
     fps = 0
     listener.start()
+
+    if CALIBRATE:
+        geometry = Geometry(r"{}/Camera/Calibration/".format(os.getcwd()))
+        calibrated, mtx, dist, rvecs, tvecs = geometry.get_calibration()
+        camera.calibrate(calibrated, mtx, dist, rvecs, tvecs)
 
     while True:
         frame = camera.get_frame() 

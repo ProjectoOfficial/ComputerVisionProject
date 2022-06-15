@@ -4,8 +4,10 @@ import glob
 
 class Geometry(object):
 
-    def __init__(self):
-        self.checkboard = (6, 9)
+    def __init__(self, path):
+        self.path = path
+
+        self.checkboard = (9, 7)
 
         self.criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
         self.obj_points = np.zeros((self.checkboard[0]*self.checkboard[1], 3), np.float32)
@@ -14,21 +16,37 @@ class Geometry(object):
         self.object_points = []
         self.image_points = []
 
-        self.images = glob.glob('*.jpg')
+        self.calibrated = False
+        self.mtx = None
+        self.dist = None
+        self.rvecs = None
+        self.tvecs = None
 
-    def Calibrate(self, frame):
+        self.images = glob.glob(self.path + '*.jpg')
+
+    def get_calibration(self):
+        calibrated = False
+
         for filename in self.images:
+            print(filename)
             img = cv2.imread(filename)
-            gray = cv2.cvtColor(cv2.COLOR_BGR2GRAY)
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
             # find chessboard corners
             ret, corners = cv2.findChessboardCorners(gray, self.checkboard, None)
 
             if ret:
+                calibrated = True
                 self.object_points.append(self.obj_points)
 
                 corners2 = cv2.cornerSubPix(gray, corners, (11, 11), (-1, -1), self.criteria)
+                self.image_points.append(corners)
+                
                 cv2.drawChessboardCorners(img, self.checkboard, corners2, ret)
                 cv2.imshow('image', img)
-                cv2.waitKey(500)
-                
+                cv2.waitKey(2000)
+                self.calibrated, self.mtx, self.dist, self.rvecs, self.tvecs = cv2.calibrateCamera(self.object_points,self.image_points, gray.shape[::-1], None, None)
+
+            cv2.destroyAllWindows()
+
+        return self.calibrated, self.mtx, self.dist, self.rvecs, self.tvecs
