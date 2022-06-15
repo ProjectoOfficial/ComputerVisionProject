@@ -54,7 +54,7 @@ def on_press(key):
 listener = Listener(on_press=on_press)
 
 if __name__ == "__main__":
-    camera = RTCamera(CAMERA_DEVICE, fps=100, resolution=(640, 480))
+    camera = RTCamera(CAMERA_DEVICE, fps=60, resolution=(640, 480))
     camera.start()
 
     start_fps = time.time()
