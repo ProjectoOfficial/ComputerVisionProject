@@ -28,7 +28,7 @@ from Geometry import Geometry
 
 CAMERA_DEVICE = 1
 PRESSED_KEY = ''
-CALIBRATE = True
+CALIBRATE = False
 
 def on_press(key):
     global PRESSED_KEY
@@ -47,6 +47,9 @@ def on_press(key):
 
         if key.char == 's':
             PRESSED_KEY = 's'
+        
+        if key.char == 'c':
+            PRESSED_KEY = 'c'
 
 listener = Listener(on_press=on_press)
 
@@ -94,14 +97,18 @@ if __name__ == "__main__":
                 camera.set_exposure(exp)
                 PRESSED_KEY = ''
 
-            if PRESSED_KEY == 's':                
-                answer = input("Want to save this frame? (Y/N)")
-                print(answer)
-                
+            if PRESSED_KEY == 's':                  
                 now = datetime.now()
-                if answer.lower() == 'y':
-                    path = r"{}/Camera/Calibration/frame_{}.jpg".format(os.getcwd(), now.strftime("%d_%m_%Y__%H_%M_%S"))
-                    camera.save_frame(path)
+                path = r"{}/Camera/Calibration/frame_{}.jpg".format(os.getcwd(), now.strftime("%d_%m_%Y__%H_%M_%S"))
+                camera.save_frame(path)
+
+                print("saved frame {} ".format(path))
+                PRESSED_KEY = ''
+
+            if PRESSED_KEY == 'c':
+                geometry = Geometry(r"{}/Camera/Calibration/".format(os.getcwd()))
+                calibrated, mtx, dist, rvecs, tvecs = geometry.get_calibration()
+                camera.calibrate(calibrated, mtx, dist, rvecs, tvecs)
                 PRESSED_KEY = ''
 
 
