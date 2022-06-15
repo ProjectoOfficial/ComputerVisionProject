@@ -19,8 +19,8 @@ class RTCamera(object):
         self.frame          = None
 
         self.resolution     = resolution
-        self.FPS            = 1/fps
-        self.FPS_MS         = int(self.FPS * 1000)
+        self.FPS            = fps
+        self.FPS_MS         = int(1/self.FPS * 1000)
 
         self.fps_frames     = 5
         self.fps_times      = []
@@ -39,8 +39,8 @@ class RTCamera(object):
         self.cap.set(cv2.CAP_PROP_FPS, fps)
         self.cap.set(cv2.CAP_PROP_CONVERT_RGB , 1)
 
-        self.cap.set(cv2.CAP_PROP_EXPOSURE, -5)
-        self.cap.set(cv2.CAP_PROP_GAIN, 5)
+        self.cap.set(cv2.CAP_PROP_EXPOSURE, -15)
+        self.cap.set(cv2.CAP_PROP_GAIN, -50)
         
 
     def start(self):
@@ -67,13 +67,13 @@ class RTCamera(object):
 
                 if len(self.fps_times) <= self.fps_frames:
                     self.fps_times.append(time.time())
-
             
             if not self.thread_alive:
                 break
 
     def get_frame(self):
         cv2.waitKey(self.FPS_MS)
+
         if self.frame is None:
             return None
         return self.frame.copy()
@@ -82,7 +82,7 @@ class RTCamera(object):
         return self.frame is not None
 
     def register(self, filename:str):
-        self.output = cv2.VideoWriter(filename, self.fourcc, 30.0, (1920, 1080))
+        self.output = cv2.VideoWriter(filename, self.fourcc, self.FPS, self.resolution)
         self.record = True
 
     def get_resolution(self):
@@ -103,10 +103,10 @@ class RTCamera(object):
         
     def set_exposure(self, exp:int):
         try:
-            assert exp < 10 and exp > -10 and isinstance(exp, int)
+            assert exp < 15 and exp > -15 and isinstance(exp, int)
             self.cap.set(cv2.CAP_PROP_EXPOSURE, exp)
         except AssertionError:
-            print("exposure must be an integer number in the range (10, -10)")
+            print("exposure must be an integer number in the range (15, -15)")
 
     def set_gain(self, gain:int):
         try:
