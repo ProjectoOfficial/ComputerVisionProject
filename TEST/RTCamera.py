@@ -1,6 +1,6 @@
 '''
 (C) Dott. Daniel Rossi - Università degli Studi di Modena e Reggio Emilia
-    Computer Vision Project
+    Computer Vision Project - Artificial Intelligence Engineering
 
     Real Time Camera class
 
@@ -12,14 +12,14 @@ from threading import Thread
 import time
 
 class RTCamera(object):
-    def __init__(self, src:int=0, fps:float=1/60, resolution:tuple=(1920, 1080)):
+    def __init__(self, src:int=0, fps:float=60, resolution:tuple=(1920, 1080)):
 
         self.src            = src
         self.cap            = cv2.VideoCapture(self.src, cv2.CAP_ANY)
         self.frame          = None
 
         self.resolution     = resolution
-        self.FPS            = fps
+        self.FPS            = 1/fps
         self.FPS_MS         = int(self.FPS * 1000)
 
         self.fps_frames     = 5
@@ -36,7 +36,7 @@ class RTCamera(object):
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.resolution[0])
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.resolution[1])
 
-        self.cap.set(cv2.CAP_PROP_FPS, 60)
+        self.cap.set(cv2.CAP_PROP_FPS, fps)
         self.cap.set(cv2.CAP_PROP_CONVERT_RGB , 1)
 
         self.cap.set(cv2.CAP_PROP_EXPOSURE, -5)
