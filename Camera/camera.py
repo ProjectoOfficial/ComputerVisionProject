@@ -18,6 +18,7 @@ sys.path.append(parent)
 import cv2
 import time
 import numpy as np
+from datetime import date, datetime
 
 from RTCamera import RTCamera
 from pynput.keyboard import Listener
@@ -42,6 +43,9 @@ def on_press(key):
 
         if key.char == 'e':
             PRESSED_KEY = 'e'
+
+        if key.char == 's':
+            PRESSED_KEY = 's'
 
 listener = Listener(on_press=on_press)
 
@@ -83,6 +87,17 @@ if __name__ == "__main__":
                 exp = int(input("please insert the exposure: "))
                 camera.set_exposure(exp)
                 PRESSED_KEY = ''
+
+            if PRESSED_KEY == 's':                
+                answer = input("Want to save this frame? (Y/N)")
+                print(answer)
+                
+                now = datetime.now()
+                if answer.lower() == 'y':
+                    path = r"{}/Camera/Calibration/frame_{}.jpg".format(os.getcwd(), now.strftime("%d_%m_%Y__%H_%M_%S"))
+                    camera.save_frame(path)
+                PRESSED_KEY = ''
+
 
     camera.stop()
     cv2.destroyAllWindows()

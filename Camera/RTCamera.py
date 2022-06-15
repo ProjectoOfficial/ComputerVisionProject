@@ -7,6 +7,7 @@
     Camera model: See3Cam_CU27 REV X1
 '''
 
+import fractions
 import cv2
 from threading import Thread
 import time
@@ -84,6 +85,9 @@ class RTCamera(object):
     def register(self, filename:str):
         self.output = cv2.VideoWriter(filename, self.fourcc, self.FPS, self.resolution)
         self.record = True
+
+    def save_frame(self, path):
+        cv2.imwrite(path, self.frame.copy())
 
     def get_resolution(self):
         width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
