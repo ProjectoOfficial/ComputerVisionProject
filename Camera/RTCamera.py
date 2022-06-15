@@ -79,10 +79,13 @@ class RTCamera(object):
 
     def get_frame(self):
         cv2.waitKey(self.FPS_MS)
-
+        
         if self.frame is None:
             return None
 
+        if self.frame.shape[0] <= 0 or self.frame.shape[1] <= 0:
+            return None
+        
         return self.frame.copy() if self.has_calibration is False else self.__adjust_frame()
 
     def available(self):

@@ -46,16 +46,16 @@ class Geometry(object):
                 cv2.drawChessboardCorners(img, self.checkboard, corners, ret)
                 cv2.imshow('image', img)
                 cv2.waitKey(500)
+                
+                cv2.destroyAllWindows()
             
-            self.calibrated, self.mtx, self.dist, self.rvecs, self.tvecs = cv2.calibrateCamera(self.object_points,self.image_points, gray.shape[::-1], None, None)
-            
-            mean_error = 0
-            for i in range(len(self.object_points)):
-                imgpoints2, _ = cv2.projectPoints(self.object_points[i], self.rvecs[i], self.tvecs[i], self.mtx, self.dist)
-                error = cv2.norm(self.image_points[i], imgpoints2, cv2.NORM_L2)/len(imgpoints2)
-                mean_error += error
-            print( "total error: {}".format(mean_error/len(self.object_points)) )
-            
-            cv2.destroyAllWindows()
+        self.calibrated, self.mtx, self.dist, self.rvecs, self.tvecs = cv2.calibrateCamera(self.object_points,self.image_points, gray.shape[::-1], None, None)
+        
+        mean_error = 0
+        for i in range(len(self.object_points)):
+            imgpoints2, _ = cv2.projectPoints(self.object_points[i], self.rvecs[i], self.tvecs[i], self.mtx, self.dist)
+            error = cv2.norm(self.image_points[i], imgpoints2, cv2.NORM_L2)/len(imgpoints2)
+            mean_error += error
+        print( "total error: {}".format(mean_error/len(self.object_points)) )
 
         return self.calibrated, self.mtx, self.dist, self.rvecs, self.tvecs

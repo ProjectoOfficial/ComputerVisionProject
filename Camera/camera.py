@@ -69,8 +69,11 @@ if __name__ == "__main__":
     while True:
         frame = camera.get_frame() 
         if camera.available():
+            edges = cv2.Canny(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), 220, 230)
+
             cv2.putText(frame, str(fps) + " fps", (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 255, 0), 2, cv2.LINE_AA)
-            cv2.imshow("frame", frame)
+            H_stack = np.hstack((frame, cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)))
+            cv2.imshow("frame", H_stack)
 
             if time.time() - start_fps > 2:
                 fps = camera.get_fps()
@@ -106,6 +109,8 @@ if __name__ == "__main__":
                 PRESSED_KEY = ''
 
             if PRESSED_KEY == 'c':
+                print("Calibration in process, please wait...\n")
+                cv2.destroyAllWindows()
                 geometry = Geometry(r"{}/Camera/Calibration/".format(os.getcwd()))
                 calibrated, mtx, dist, rvecs, tvecs = geometry.get_calibration()
                 camera.calibrate(calibrated, mtx, dist, rvecs, tvecs)
