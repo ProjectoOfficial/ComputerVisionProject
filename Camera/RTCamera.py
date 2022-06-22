@@ -11,6 +11,8 @@ import cv2
 from threading import Thread
 import time
 
+from pandas import read_table
+
 class RTCamera(object):
     def __init__(self, src:int=0, fps:float=60, resolution:tuple=(1920, 1080)):
 
@@ -48,9 +50,9 @@ class RTCamera(object):
         self.cap.set(cv2.CAP_PROP_CONVERT_RGB , 1)
 
         self.cap.set(cv2.CAP_PROP_EXPOSURE, self.exposure)
-        self.cap.set(cv2.CAP_PROP_GAIN, -50)
+        self.cap.set(cv2.CAP_PROP_GAIN, 0)
 
-        self.EXPOSURE_RANGE = range(60, 90)
+        self.EXPOSURE_RANGE = range(60, 75)
         
 
     def start(self):
@@ -154,26 +156,32 @@ class RTCamera(object):
 
     def __adjust_exposure(self):
         start_time = time.time()
+        
+        read_interval = 1
+        last_read = time.time()
 
         while True:
             if self.cap.isOpened():
-                (self.ret, self.frame) = self.cap.read()
+                if time.time() - last_read > read_interval:
+                    (self.ret, self.frame) = self.cap.read()
+                    last_read = time.time()
 
-                avg = round(self.frame.mean(axis=(0, 1, 2)))
+                    avg = round(self.frame.mean(axis=(0, 1, 2)))
 
-                if avg not in list(self.EXPOSURE_RANGE):
-                    if avg < self.EXPOSURE_RANGE[0]:
-                        self.exposure +=1
+                    if avg not in list(self.EXPOSURE_RANGE):
+                        print(avg)
+                        if avg < self.EXPOSURE_RANGE[0]:
+                            self.exposure +=1
 
-                    if avg > self.EXPOSURE_RANGE[-1]:
-                        self.exposure -=1
-                    
-                    self.cap.set(cv2.CAP_PROP_EXPOSURE, self.exposure)
-                    time.sleep(0.1)
-                else:
-                    print("Exposure adjusted at {}".format(self.exposure))
-                    break
+                        if avg > self.EXPOSURE_RANGE[-1]:
+                            self.exposure -=1
+                        
+                        self.cap.set(cv2.CAP_PROP_EXPOSURE, self.exposure)
+                        
+                    else:
+                        print("Exposure adjusted at {}".format(self.exposure))
+                        break
 
-            if time.time() - start_time > 10:
+            if time.time() - start_time > 15:
                 print("could not calibrate camera exposure: {}".format(self.exposure))
                 break
