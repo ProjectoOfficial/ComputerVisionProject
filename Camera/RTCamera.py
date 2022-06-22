@@ -38,6 +38,8 @@ class RTCamera(object):
         self.rvecs = None
         self.tvecs = None
 
+        self.exposure = 0
+
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 100)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.resolution[0])
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.resolution[1])
@@ -45,11 +47,15 @@ class RTCamera(object):
         self.cap.set(cv2.CAP_PROP_FPS, fps)
         self.cap.set(cv2.CAP_PROP_CONVERT_RGB , 1)
 
-        self.cap.set(cv2.CAP_PROP_EXPOSURE, -15)
+        self.cap.set(cv2.CAP_PROP_EXPOSURE, self.exposure)
         self.cap.set(cv2.CAP_PROP_GAIN, -50)
+
+        self.EXPOSURE_RANGE = range(60, 90)
         
 
     def start(self):
+        self.__adjust_exposure()
+
         self.thread_alive = True
         self.thread = Thread(target=self.__update, args=())
         self.thread.start()
@@ -145,3 +151,23 @@ class RTCamera(object):
         dst = dst[y:y+h, x:x+w]
 
         return dst.copy()
+
+    def __adjust_exposure(self):
+        while True:
+            if self.cap.isOpened():
+                (self.ret, self.frame) = self.cap.read()
+
+                avg = round(self.frame.mean(axis=(0, 1, 2)))
+
+                if avg not in list(self.EXPOSURE_RANGE):
+                    if avg < self.EXPOSURE_RANGE[0]:
+                        self.exposure +=1
+
+                    if avg > self.EXPOSURE_RANGE[-1]:
+                        self.exposure -=1
+                    
+                    self.cap.set(cv2.CAP_PROP_EXPOSURE, self.exposure)
+                    time.sleep(0.1)
+                else:
+                    print("Exposure adjusted at {}".format(self.exposure))
+                    break

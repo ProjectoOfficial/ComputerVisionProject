@@ -26,30 +26,17 @@ from pynput.keyboard import Listener
 from RTCamera import RTCamera
 from Geometry import Geometry
 
-CAMERA_DEVICE = 1
+CAMERA_DEVICE = 0
 PRESSED_KEY = ''
 CALIBRATE = False
 
 def on_press(key):
     global PRESSED_KEY
     if hasattr(key, 'char'):
-        if key.char == 'q':
-            PRESSED_KEY = 'q'
+        if key.char is not None:
+            if key.char in "qrgesci":
+                PRESSED_KEY = key.char
 
-        if key.char == 'r':
-            PRESSED_KEY = 'r'
-
-        if key.char == 'g':
-            PRESSED_KEY = 'g'
-
-        if key.char == 'e':
-            PRESSED_KEY = 'e'
-
-        if key.char == 's':
-            PRESSED_KEY = 's'
-        
-        if key.char == 'c':
-            PRESSED_KEY = 'c'
 
 listener = Listener(on_press=on_press)
 
@@ -88,17 +75,15 @@ if __name__ == "__main__":
             if PRESSED_KEY == 'r':
                 print("recording started...")
                 camera.register("out.mp4")
-                PRESSED_KEY = ''
 
             if PRESSED_KEY == 'g':
                 gain = int(input("please insert the gain: "))
                 camera.set_gain(gain)
-                PRESSED_KEY = ''
 
             if PRESSED_KEY == 'e':
                 exp = int(input("please insert the exposure: "))
                 camera.set_exposure(exp)
-                PRESSED_KEY = ''
+
 
             if PRESSED_KEY == 's':                  
                 now = datetime.now()
@@ -106,7 +91,7 @@ if __name__ == "__main__":
                 camera.save_frame(path)
 
                 print("saved frame {} ".format(path))
-                PRESSED_KEY = ''
+
 
             if PRESSED_KEY == 'c':
                 print("Calibration in process, please wait...\n")
@@ -114,6 +99,11 @@ if __name__ == "__main__":
                 geometry = Geometry(r"{}/Camera/Calibration/".format(os.getcwd()))
                 calibrated, mtx, dist, rvecs, tvecs = geometry.get_calibration()
                 camera.calibrate(calibrated, mtx, dist, rvecs, tvecs)
+
+            if PRESSED_KEY == 'i':
+                print("Frame AVG value: {}".format(frame.mean(axis=(0,1))))
+
+            if PRESSED_KEY != '':
                 PRESSED_KEY = ''
 
 
