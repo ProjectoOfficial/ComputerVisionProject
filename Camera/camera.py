@@ -106,7 +106,6 @@ if __name__ == "__main__":
             if PRESSED_KEY != '':
                 PRESSED_KEY = ''
 
-
     camera.stop()
     cv2.destroyAllWindows()
     print("closed")

@@ -79,7 +79,7 @@ class RTCamera(object):
 
                 if len(self.fps_times) <= self.fps_frames:
                     self.fps_times.append(time.time())
-            
+                
             if not self.thread_alive:
                 break
 
@@ -153,6 +153,8 @@ class RTCamera(object):
         return dst.copy()
 
     def __adjust_exposure(self):
+        start_time = time.time()
+
         while True:
             if self.cap.isOpened():
                 (self.ret, self.frame) = self.cap.read()
@@ -171,3 +173,7 @@ class RTCamera(object):
                 else:
                     print("Exposure adjusted at {}".format(self.exposure))
                     break
+
+            if time.time() - start_time > 10:
+                print("could not calibrate camera exposure: {}".format(self.exposure))
+                break
