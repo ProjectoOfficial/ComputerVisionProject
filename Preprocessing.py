@@ -1,3 +1,12 @@
+__author__ = "Daniel Rossi, Riccardo Salami, Filippo Ferrari"
+__copyright__ = "Copyright 2022"
+__credits__ = ["Daniel Rossi", "Riccardo Salami", "Filippo Ferrari"]
+__license__ = "GPL-3.0"
+__version__ = "1.0.0"
+__maintainer__ = "Riccardo Salami"
+__email__ = "miniprojectsofficial@gmail.com"
+__status__ = "Computer Vision Exam"
+
 import numpy as np
 import cv2
 
@@ -9,11 +18,11 @@ class Preprocessing(object):
     def GaussianBlur(frame: np.ndarray, sigma:float):
         return cv2.GaussianBlur(frame, (5, 5), sigma)
 
-
+# Robaccia di test da cavare via ma utile da scopiazzare per fare la classe preprocessing
+'''
 TRESH_MODE = "ADAPTIVE_GAUSSIAN" # OTSU ADAPTIVE_GAUSSIAN ADAPTIVE_MEAN
 
 
-# Robaccia di test da cavare via ma utile da scopiazzare per fare la classe preprocessing
 def processing(img: np.ndarray):
         gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
         blur = cv2.GaussianBlur(gray, (5, 5), 0)
@@ -35,3 +44,4 @@ def processing(img: np.ndarray):
         H_stack = np.hstack((rgb_blur, rgb_th, rgb_canny))
 
         cv2.imshow("images", H_stack)
+'''

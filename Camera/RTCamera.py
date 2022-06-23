@@ -1,11 +1,11 @@
-'''
-(C) Dott. Daniel Rossi - Università degli Studi di Modena e Reggio Emilia
-    Computer Vision Project - Artificial Intelligence Engineering
-
-    Real Time Camera class
-
-    Camera model: See3Cam_CU27 REV X1
-'''
+__author__ = "Daniel Rossi, Riccardo Salami, Filippo Ferrari"
+__copyright__ = "Copyright 2022"
+__credits__ = ["Daniel Rossi", "Riccardo Salami", "Filippo Ferrari"]
+__license__ = "GPL-3.0"
+__version__ = "1.0.0"
+__maintainer__ = "Daniel Rossi"
+__email__ = "miniprojectsofficial@gmail.com"
+__status__ = "Computer Vision Exam"
 
 import cv2
 from threading import Thread
@@ -14,6 +14,10 @@ import time
 from pandas import read_table
 
 class RTCamera(object):
+    '''
+        This class is used to manage the camera
+    '''
+
     def __init__(self, src:int=0, fps:float=60, resolution:tuple=(1920, 1080)):
 
         self.src            = src
@@ -56,6 +60,9 @@ class RTCamera(object):
         
 
     def start(self):
+        '''
+        it automatically tries to adjust the exposure of the camera then starts the camera thread
+        '''        
         self.__adjust_exposure()
 
         self.thread_alive = True
@@ -63,6 +70,9 @@ class RTCamera(object):
         self.thread.start()
 
     def stop(self):
+        '''
+        it stops the camera thread and releases the camera. If recording was started, it saves the file and close it
+        '''
         if self.record:
             self.output.release()
             self.record = False
@@ -72,6 +82,9 @@ class RTCamera(object):
         self.cap.release()
 
     def __update(self):
+        '''
+        this function updates the current frame captured by the camera
+        '''
         while True:
             if self.cap.isOpened():
                 (self.ret, self.frame) = self.cap.read()
@@ -86,6 +99,9 @@ class RTCamera(object):
                 break
 
     def get_frame(self):
+        '''
+        this method returns the current frame
+        '''
         cv2.waitKey(self.FPS_MS)
         
         if self.frame is None:
@@ -97,21 +113,36 @@ class RTCamera(object):
         return self.frame.copy() if self.has_calibration is False else self.__adjust_frame()
 
     def available(self):
+        '''
+        it returns if the camera is available
+        '''
         return self.frame is not None
 
     def register(self, filename:str):
+        '''
+        this method starts the video recording 
+        '''
         self.output = cv2.VideoWriter(filename, self.fourcc, self.FPS, self.resolution)
         self.record = True
 
     def save_frame(self, path):
+        '''
+        this method saves the current frame
+        '''
         cv2.imwrite(path, self.frame.copy())
 
     def get_resolution(self):
+        '''
+        this method returns the frame proportions used for acquiring the current frame and eventually for recording
+        '''
         width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         heigth = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         print("RESOLUTION: {}x{}".format(width, heigth))
 
     def get_fps(self):
+        '''
+        this method calculates the framerate
+        '''
         if len(self.fps_times) >= self.fps_frames:
             total = 0
 
@@ -123,6 +154,9 @@ class RTCamera(object):
         return 0
         
     def set_exposure(self, exp:int):
+        '''
+        this method allows to manually set the camera exposure
+        '''
         try:
             assert exp < 15 and exp > -15 and isinstance(exp, int)
             self.cap.set(cv2.CAP_PROP_EXPOSURE, exp)
@@ -130,6 +164,9 @@ class RTCamera(object):
             print("exposure must be an integer number in the range (15, -15)")
 
     def set_gain(self, gain:int):
+        '''
+        this method allows to manually set the camera gain (introduces noise)
+        '''
         try:
             assert isinstance(gain, int)
             self.cap.set(cv2.CAP_PROP_GAIN, gain)
@@ -137,13 +174,19 @@ class RTCamera(object):
             print("gain must be an integer number ")
 
     def calibrate(self, calibrated, mtx, dist, rvecs, tvecs):
+        '''
+        this method is a setter for calibration parameters
+        '''
         self.has_calibration = calibrated
         self.mtx = mtx
         self.dist = dist
         self.rvecs = rvecs
         self.tvecs = tvecs
 
-    def __adjust_frame(self):        
+    def __adjust_frame(self):
+        '''
+        this method takes the calibration parameters and calibrates the current frame
+        '''
         h, w = self.frame.shape[:2]
         newcameramtx, roi = cv2.getOptimalNewCameraMatrix(self.mtx, self.dist, (w,h), 1, (w,h))
         mapx, mapy = cv2.initUndistortRectifyMap(self.mtx, self.dist, None, newcameramtx, (w,h), 5)
@@ -155,6 +198,9 @@ class RTCamera(object):
         return dst.copy()
 
     def __adjust_exposure(self):
+        '''
+        this method automatically tries to adjust the exposure
+        '''
         start_time = time.time()
         
         read_interval = 1

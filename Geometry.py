@@ -1,8 +1,22 @@
+__author__ = "Daniel Rossi, Riccardo Salami, Filippo Ferrari"
+__copyright__ = "Copyright 2022"
+__credits__ = ["Daniel Rossi", "Riccardo Salami", "Filippo Ferrari"]
+__license__ = "GPL-3.0"
+__version__ = "1.0.0"
+__maintainer__ = "Daniel Rossi"
+__email__ = "miniprojectsofficial@gmail.com"
+__status__ = "Computer Vision Exam"
+
 import cv2
 import numpy as np
 import glob
+from tqdm import tqdm
 
 class Geometry(object):
+    '''
+        This class contains all the geometry transformation used inside this project:
+            - Camera calibration
+    '''
 
     def __init__(self, path):
         self.path = path
@@ -25,14 +39,15 @@ class Geometry(object):
         self.images = glob.glob(self.path + '*.jpg')
 
     def get_calibration(self):
+        '''
+        this method calculates the camera calibration parameters through images previously acquired by the user by using chessboard method
+        '''
         calibrated = False
 
-        for filename in self.images:
-            print(filename)
+        for filename in tqdm(self.images, desc="Calibrating camera"):
             img = cv2.imread(filename)
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-            # find chessboard corners
             find_flags = cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_FAST_CHECK
             ret, corners = cv2.findChessboardCorners(gray, self.checkboard, find_flags)
 

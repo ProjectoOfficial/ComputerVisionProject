@@ -1,13 +1,13 @@
 #export OPENBLAS_CORETYPE=ARMV8
-'''
-(C) Dott. Daniel Rossi - Università degli Studi di Modena e Reggio Emilia
-    Computer Vision Project - Artificial Intelligence Engineering
+__author__ = "Daniel Rossi, Riccardo Salami, Filippo Ferrari"
+__copyright__ = "Copyright 2022"
+__credits__ = ["Daniel Rossi", "Riccardo Salami", "Filippo Ferrari"]
+__license__ = "GPL-3.0"
+__version__ = "1.0.0"
+__maintainer__ = "Daniel Rossi"
+__email__ = "miniprojectsofficial@gmail.com"
+__status__ = "Computer Vision Exam"
 
-    Real Time Camera script for road analysis
-
-
-    Camera model: See3Cam_CU27 REV X1
-'''
 import os
 import sys
   
@@ -104,7 +104,6 @@ if __name__ == "__main__":
 
             if PRESSED_KEY != '':
                 PRESSED_KEY = ''
-
 
             if BLUR:
                 frame = Preprocessing.GaussianBlur(frame, 1)
