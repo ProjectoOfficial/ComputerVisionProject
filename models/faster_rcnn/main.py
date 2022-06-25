@@ -23,6 +23,7 @@ from FasterRCNN import FasterRCNN, FastRCNNPredictor
 from plot import plot_map, plot_loss_and_lr
 import matplotlib.pyplot as plt
 from train_utils import *
+from evaluate_utils import *
 
 def show_image(img, labels):
     img = img.swapaxes(0,1)
@@ -51,7 +52,7 @@ if __name__ == '__main__':
 
     BDD_CLASSES = ['pedestrian', 'rider', 'car', 'truck', 'bus', 'train', 'motorcycle', 'bicycle', 'traffic light', 'traffic sign']
     BATCH_SIZE = 2
-    DEVICE = "cpu"#torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     print("Data path: {}".format(DATA_DIR))
     print("Fetching data...")
@@ -122,7 +123,7 @@ if __name__ == '__main__':
 
     batch_size = 1
 
-    num_class = 10  # foreground + 1 background
+    num_class = 10  
     data_root_dir = " "
     model_save_dir = os.path.dirname(os.path.abspath(__file__))
     
@@ -170,7 +171,7 @@ if __name__ == '__main__':
 
     model.to(DEVICE)
     params = [p for p in model.parameters() if p.requires_grad]
-    optimizer = torch.optim.SGD(params, lr=lr, momentum=momentum, weight_decay=weight_decay)
+    optimizer = torch.optim.AdamW(params, lr=lr, momentum=momentum, weight_decay=weight_decay)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=lr_dec_step_size, gamma=lr_gamma)
 
     # train from pretrained weights
@@ -189,13 +190,14 @@ if __name__ == '__main__':
 
     best_mAP = 0
     for epoch in range(start_epoch, num_epochs):
+        torch.cuda.empty_cache()
         loss_dict, total_loss = train_one_epoch(model, optimizer, trainloader,
                                                 DEVICE, epoch, train_loss=train_loss, train_lr=learning_rate,
                                                 print_freq=50, warmup=False)
 
         lr_scheduler.step()
 
-        '''
+        
         print("------>Starting training data valid")
         _, train_mAP = evaluate(model, trainloader, device=DEVICE, mAP_list=train_mAP_list)
 
@@ -227,7 +229,7 @@ if __name__ == '__main__':
                 os.makedirs(model_save_dir)
             torch.save(save_files,
                        os.path.join(model_save_dir, "{}-model-{}-mAp-{}.pth".format(backbone, epoch, mAP)))
-        '''
+        
     writer.close()
     # plot loss and lr curve
     if len(train_loss) != 0 and len(learning_rate) != 0:
