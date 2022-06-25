@@ -2,3 +2,5 @@ frame_*
 output.mp4
 bdd100k*
 info.txt
+__pycache__
+epoch_log
