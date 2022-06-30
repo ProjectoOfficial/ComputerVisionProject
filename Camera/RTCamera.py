@@ -88,6 +88,8 @@ class RTCamera(object):
         while True:
             if self.cap.isOpened():
                 (self.ret, self.frame) = self.cap.read()
+                if self.has_calibration:
+                    self.__adjust_frame()
 
                 if self.record:
                     self.output.write(self.frame)
@@ -110,7 +112,7 @@ class RTCamera(object):
         if self.frame.shape[0] <= 0 or self.frame.shape[1] <= 0:
             return None
         
-        return self.frame.copy() if self.has_calibration is False else self.__adjust_frame()
+        return self.frame.copy()
 
     def available(self):
         '''
@@ -194,8 +196,7 @@ class RTCamera(object):
         # crop the image
         x, y, w, h = roi
         dst = dst[y:y+h, x:x+w]
-
-        return dst.copy()
+        self.frame = cv2.resize(dst, (640, 480))
 
     def __adjust_exposure(self):
         '''
