@@ -87,9 +87,10 @@ class RTCamera(object):
         '''
         while True:
             if self.cap.isOpened():
-                (self.ret, self.frame) = self.cap.read()
                 if self.has_calibration:
-                    self.__adjust_frame()
+                    self.read_calibrated()
+                else:
+                    (self.ret, self.frame) = self.cap.read()
 
                 if self.record:
                     self.output.write(self.frame)
@@ -185,14 +186,16 @@ class RTCamera(object):
         self.rvecs = rvecs
         self.tvecs = tvecs
 
-    def __adjust_frame(self):
+    def read_calibrated(self):
         '''
         this method takes the calibration parameters and calibrates the current frame
         '''
-        h, w = self.frame.shape[:2]
+        
+        (ret, frame) = self.cap.read()
+        h, w = frame.shape[:2]
         newcameramtx, roi = cv2.getOptimalNewCameraMatrix(self.mtx, self.dist, (w,h), 1, (w,h))
         mapx, mapy = cv2.initUndistortRectifyMap(self.mtx, self.dist, None, newcameramtx, (w,h), 5)
-        dst = cv2.undistort(self.frame, self.mtx, self.dist, None, newcameramtx)
+        dst = cv2.undistort(frame, self.mtx, self.dist, None, newcameramtx)
         # crop the image
         x, y, w, h = roi
         dst = dst[y:y+h, x:x+w]

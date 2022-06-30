@@ -27,10 +27,11 @@ from RTCamera import RTCamera
 from Geometry import Geometry
 from Preprocessing import Preprocessing
 
-CAMERA_DEVICE = 0
+CAMERA_DEVICE = 2
 PRESSED_KEY = ''
 CALIBRATE = False
 BLUR = False
+FILENAME = "out"
 
 def on_press(key):
     global PRESSED_KEY
@@ -57,6 +58,9 @@ if __name__ == "__main__":
 
     while True:
         frame = camera.get_frame() 
+        if frame is None:
+            continue
+
         if camera.available():
             if time.time() - start_fps > 2:
                 fps = camera.get_fps()
@@ -70,7 +74,7 @@ if __name__ == "__main__":
 
             if PRESSED_KEY == 'r':
                 print("recording started...")
-                camera.register("out.mp4")
+                camera.register("{}.mp4".format(FILENAME))
 
             if PRESSED_KEY == 'g':
                 gain = int(input("please insert the gain: "))
@@ -86,7 +90,6 @@ if __name__ == "__main__":
                 camera.save_frame(path)
 
                 print("saved frame {} ".format(path))
-
 
             if PRESSED_KEY == 'c':
                 print("Calibration in process, please wait...\n")
