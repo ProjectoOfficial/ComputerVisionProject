@@ -10,7 +10,9 @@ __status__ = "Computer Vision Exam"
 
 import os
 import sys
-  
+
+import torch
+
 current = os.path.dirname(os.path.realpath(__file__))  
 parent = os.path.dirname(current)
 sys.path.append(parent)
@@ -20,7 +22,6 @@ import time
 import numpy as np
 from datetime import datetime
 
-from RTCamera import RTCamera
 from pynput.keyboard import Listener
 
 from RTCamera import RTCamera
@@ -31,6 +32,7 @@ CAMERA_DEVICE = 2
 PRESSED_KEY = ''
 CALIBRATE = False
 BLUR = False
+TRANSFORMS = True
 FILENAME = "out"
 
 def on_press(key):
@@ -105,13 +107,22 @@ if __name__ == "__main__":
                 BLUR = not BLUR
                 print("blur: {}".format(BLUR))
 
+            if PRESSED_KEY == 't':
+                TRANSFORMS = not TRANSFORMS
+                print("transform: {}".format(TRANSFORMS))
+
             if PRESSED_KEY != '':
                 PRESSED_KEY = ''
 
             if BLUR:
                 frame = Preprocessing.GaussianBlur(frame, 1)
+
+            if TRANSFORMS:
+                frame = Preprocessing.Transforms(frame)
                 
             edges = cv2.Canny(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), 220, 230)
+
+            frame = frame.copy()
 
             cv2.putText(frame, str(fps) + " fps", (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 255, 0), 2, cv2.LINE_AA)
             H_stack = np.hstack((frame, cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)))

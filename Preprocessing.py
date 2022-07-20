@@ -7,8 +7,12 @@ __maintainer__ = "Riccardo Salami"
 __email__ = "miniprojectsofficial@gmail.com"
 __status__ = "Computer Vision Exam"
 
+
+import torch
 import numpy as np
 import cv2
+import torchvision.transforms as transforms
+from PIL import Image
 
 class Preprocessing(object):
     def __init__(self):
@@ -17,6 +21,22 @@ class Preprocessing(object):
     @staticmethod
     def GaussianBlur(frame: np.ndarray, sigma:float):
         return cv2.GaussianBlur(frame, (5, 5), sigma)
+
+    def Transforms(frame: np.ndarray):
+
+        transform = transforms.Compose([
+            transforms.ToPILImage(),
+            #transforms.CenterCrop((240, 320)),
+            transforms.ColorJitter(brightness=0.75, hue=0.5),
+            transforms.PILToTensor()])
+
+        image_transformed = transform(frame)
+
+        frame = np.swapaxes(np.swapaxes(np.uint8(image_transformed.numpy()), 0, 2), 0, 1)
+
+        return frame
+
+
 
 # Robaccia di test da cavare via ma utile da scopiazzare per fare la classe preprocessing
 '''

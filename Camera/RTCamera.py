@@ -21,7 +21,11 @@ class RTCamera(object):
     def __init__(self, src:int=0, fps:float=60, resolution:tuple=(1920, 1080)):
 
         self.src            = src
-        self.cap            = cv2.VideoCapture(self.src, cv2.CAP_ANY)
+        #self.cap            = cv2.VideoCapture(self.src, cv2.CAP_ANY)
+
+        #with MacOs
+        self.cap            = cv2.VideoCapture(0, cv2.CAP_ANY)
+
         self.frame          = None
 
         self.resolution     = resolution
