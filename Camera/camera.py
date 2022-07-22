@@ -11,8 +11,6 @@ __status__ = "Computer Vision Exam"
 import os
 import sys
 
-import torch
-
 current = os.path.dirname(os.path.realpath(__file__))  
 parent = os.path.dirname(current)
 sys.path.append(parent)
@@ -28,25 +26,34 @@ from RTCamera import RTCamera
 from Geometry import Geometry
 from Preprocessing import Preprocessing
 
-CAMERA_DEVICE = 2
+'''
+INSTRUCTION:
+    1) CAMERA DEVICE is the ID of the camera that is connected to your PC (if you only have one camera set i to 0). With this param, passed to the RTCamera constructor, you can 
+        choose the camera to work with
+    2) CALIBRATE allows to calculate camera distortion and calibrate the camera automatically before catching the first frame
+    3) FILENAME is the name that this script will use to store the video recording 
+
+'''
+
+CAMERA_DEVICE = 0
 PRESSED_KEY = ''
 CALIBRATE = False
 BLUR = False
-TRANSFORMS = True
+TRANSFORMS = False
 FILENAME = "out"
 
 def on_press(key):
     global PRESSED_KEY
     if hasattr(key, 'char'):
         if key.char is not None:
-            if key.char in "qrgescib":
+            if key.char in "qrgescibt": # add here a letter if you want to insert a new command
                 PRESSED_KEY = key.char
 
 
 listener = Listener(on_press=on_press)
 
 if __name__ == "__main__":
-    camera = RTCamera(CAMERA_DEVICE, fps=60, resolution=(640, 480))
+    camera = RTCamera(CAMERA_DEVICE, fps=60, resolution=(640, 480), cuda=True)
     camera.start()
 
     start_fps = time.time()
@@ -88,6 +95,8 @@ if __name__ == "__main__":
 
             if PRESSED_KEY == 's':                  
                 now = datetime.now()
+                if not os.path.isdir(current + "/Calibration"):
+                    os.makedirs(current + "/Calibration")
                 path = r"{}/Camera/Calibration/frame_{}.jpg".format(os.getcwd(), now.strftime("%d_%m_%Y__%H_%M_%S"))
                 camera.save_frame(path)
 
@@ -110,15 +119,16 @@ if __name__ == "__main__":
             if PRESSED_KEY == 't':
                 TRANSFORMS = not TRANSFORMS
                 print("transform: {}".format(TRANSFORMS))
-
-            if PRESSED_KEY != '':
-                PRESSED_KEY = ''
-
+            
             if BLUR:
                 frame = Preprocessing.GaussianBlur(frame, 1)
 
             if TRANSFORMS:
                 frame = Preprocessing.Transforms(frame)
+
+            if PRESSED_KEY != '':
+                PRESSED_KEY = ''
+
                 
             edges = cv2.Canny(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), 220, 230)
 

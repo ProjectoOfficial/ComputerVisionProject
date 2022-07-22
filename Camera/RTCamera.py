@@ -7,6 +7,7 @@ __maintainer__ = "Daniel Rossi"
 __email__ = "miniprojectsofficial@gmail.com"
 __status__ = "Computer Vision Exam"
 
+from enum import auto
 import cv2
 from threading import Thread
 import time
@@ -18,15 +19,15 @@ class RTCamera(object):
         This class is used to manage the camera
     '''
 
-    def __init__(self, src:int=0, fps:float=60, resolution:tuple=(1920, 1080)):
+    def __init__(self, src:int=0, fps:float=60, resolution:tuple=(1920, 1080), cuda : bool = False, auto_exposure : bool = False):
 
         self.src            = src
-        #self.cap            = cv2.VideoCapture(self.src, cv2.CAP_ANY)
-
-        #with MacOs
-        self.cap            = cv2.VideoCapture(0, cv2.CAP_ANY)
+        self.cap            = cv2.VideoCapture(self.src, cv2.CAP_ANY)
 
         self.frame          = None
+
+        self.cuda           = cuda
+        self.auto_exposure  = auto_exposure
 
         self.resolution     = resolution
         self.FPS            = fps
@@ -66,8 +67,13 @@ class RTCamera(object):
     def start(self):
         '''
         it automatically tries to adjust the exposure of the camera then starts the camera thread
-        '''        
-        self.__adjust_exposure()
+        ''' 
+        if self.cuda:
+            print("Sorry but OpenCV documentation is a joke")
+            self.cuda = False
+
+        if self.auto_exposure:       
+            self.__adjust_exposure()
 
         self.thread_alive = True
         self.thread = Thread(target=self.__update, args=())
@@ -95,7 +101,11 @@ class RTCamera(object):
                     self.read_calibrated()
                 else:
                     (self.ret, self.frame) = self.cap.read()
-
+                    if self.cuda:
+                        tmp = self.frame
+                        self.frame = cv2.cuda_GpuMat()
+                        self.frame.upload(tmp)
+                        
                 if self.record:
                     self.output.write(self.frame)
 

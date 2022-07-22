@@ -4,6 +4,14 @@ from PIL import Image
 from torch.utils.data import Dataset
 import json
 
+def collate_fn(batch):
+    """
+    the collate_fn receives a list of tuples if your __getitem__ function
+    from a Dataset subclass returns a tuple, or just a normal list if your Dataset subclass returns only one element
+    """
+    batch = list(zip(*batch))
+    return tuple(batch)
+
 class BDDDataset(Dataset):
     def __init__(self, data_dir, flag, label_list, transforms = None):
 
