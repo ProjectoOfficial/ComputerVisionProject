@@ -1,0 +1,81 @@
+REQUIREMENTS
+- Anaconda
+- Visual Studio
+- Cuda Toolkit (download it and install it with default options)
+    --> https://developer.nvidia.com/cuda-downloads
+- cuDNN (donwload it, extract it and copy it to "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/vXX.X/")
+    --> https://developer.nvidia.com/rdp/cudnn-archive
+    --> if during copy it is necessary to replace files, do it
+
+
+LET'S GO
+1. install cmake: https://cmake.org/download/
+2. create a directory called "OpenCV_Build" inside "C:" drive
+3. download opencv source code inside this directory: https://github.com/opencv/opencv/archive/4.6.0.zip
+4. download opencv contrib extra modules and move it to the previous directory: https://github.com/opencv/opencv_contrib/tags
+    4.1 opencv and opencv-contrib should have the same version
+
+5. extract both compressed files
+
+6. open cmake
+7. source code is in opencv folder ("C:/OpenCV_Build/opencv-x.x.x")
+8. create a folder called "build" inside "OpenCV_Build" and select it as the folder that will contain the binaries
+9. check the "Grouped" flag
+10. open anaconda prompt and update numpy (pip install --upgrade numpy)
+11. click on "Configure" and wait (use visual studio for compiling and select x64)
+
+12. in "search", look for "WITH_CUDA" and check this flag
+13. in "search", look for "OPENCV_DNN_CUDA" and check this flag
+14. in "search", look for "ENABLE_FAST_MATH" and check this flag 
+15. in "search", look for "BUILD_opencv_world" and check this flag 
+16. in "search", look for "OPENCV_PYTHON_3" and check this flag 
+17. in "search", look for "OPENCV_EXTRA_MODULES_PATH", click on browse option and point it to "opencv_contrib/modules"
+18. click again on "Configure"
+ 
+19. in "search", look for "CUDA_FAST_MATH" and check this flag
+20. in "search", look for "CUDA_ARCH_BIN" and select the right architecture for your GPU!
+    --> https://en.wikipedia.org/wiki/CUDA - then insert architecture number
+21. in "OpenCV_Build" create a new folder called "install"
+22. in "search", look for "CMAKE_INSTALL_PREFIX" and insert as install folder the one you just created (e.g. "C:/OpenCV_Build/install")
+23. in "search", look for "CMAKE_CONFIGURATION_TYPES" and remove debug (it will end up containing only "Release")
+
+EXTRA
+follow these instruction only if you want to add opencv to an existing environment instead of "Base"
+25. in "search", look for "PYTHON3_EXECUTABLE" and add the path to python3 in your environment
+    --> e.g. "~/anaconda3/envs/environment_name/python.exe"
+26. in "search", look for "PYTHON3_INCLUDE_DIR" and add the path to include in your environment
+    --> e.g. "~/anaconda3/envs/environment_name/include"
+27. in "search", look for "PYTHON3_LIBRARY" and add the path to python3 library in your environment
+    --> e.g. "~/anaconda3/envs/environment_name/libs/pythonXX.lib"
+28. in "search", look for "PYTHON3_NUMPY_INCLUDE_DIRS" and add the path to numpy in your environment
+    --> e.g. "~/anaconda3/envs/environment_name/lib/site-packages/numpy/core/include"
+29. in "search", look for "PYTHON3_PACKAGES_PATH" and add the path to python3 site-packages in your environment
+    --> e.g. "~/anaconda3/envs/environment_name/Lib/site-packages"
+30. click again on "Configure"
+31. click on "Generate"
+
+open a new terminal (cmd)
+32. launch: "C:\Program Files\CMake\bin\cmake.exe" --build "C:\OpenCV_Build\build" --target INSTALL --config Release
+33. in "C:\OpenCV_Build\build\lib\python3\Release" exists "cv2.cp38-win_amd64.pyd"
+    it should exists also in "~\anaconda3\Lib\site-packages\cv2\python-x.x"
+
+TEST SCRIPT
+import numpy as np
+import cv2
+import time
+
+data = np.random.random((1024, 1024)).astype(np.float32)
+mat = np.stack([data, data], axis=2)
+
+cudaMat1 = cv2.cuda_GpuMat()
+cudaMat2 = cv2.cuda_GpuMat()
+cudaMat1.upload(mat)
+cudaMat2.upload(mat)
+
+start_time = time.time()
+cv2.cuda.gemm(cudaMat1, cudaMat2, 1, None, 0, None, 1)
+print("GPU: \t {}s ".format(time.time() - start_time))
+
+start_time = time.time()
+cv2.gemm(mat, mat, 1, None, 0, None, 1)
+print("CPU: \t {}s ".format(time.time() - start_time))
