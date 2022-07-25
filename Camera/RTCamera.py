@@ -7,12 +7,10 @@ __maintainer__ = "Daniel Rossi"
 __email__ = "miniprojectsofficial@gmail.com"
 __status__ = "Computer Vision Exam"
 
-from enum import auto
 import cv2
 from threading import Thread
 import time
-
-from pandas import read_table
+import numpy as np
 
 class RTCamera(object):
     '''
@@ -249,3 +247,10 @@ class RTCamera(object):
             if time.time() - start_time > 15:
                 print("could not calibrate camera exposure: {}".format(self.exposure))
                 break
+    
+    @staticmethod
+    def rotate_image(image, angle):
+        image_center = tuple(np.array(image.shape[1::-1]) / 2)
+        rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
+        result = cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
+        return result

@@ -35,7 +35,7 @@ INSTRUCTION:
 
 '''
 
-CAMERA_DEVICE = 0
+CAMERA_DEVICE = 1
 PRESSED_KEY = ''
 CALIBRATE = False
 BLUR = False
@@ -53,7 +53,7 @@ def on_press(key):
 listener = Listener(on_press=on_press)
 
 if __name__ == "__main__":
-    camera = RTCamera(CAMERA_DEVICE, fps=60, resolution=(640, 480), cuda=True)
+    camera = RTCamera(CAMERA_DEVICE, fps=60, resolution=(480, 640), cuda=True)
     camera.start()
 
     start_fps = time.time()

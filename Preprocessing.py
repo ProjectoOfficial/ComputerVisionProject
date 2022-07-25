@@ -11,7 +11,7 @@ __status__ = "Computer Vision Exam"
 import torch
 import numpy as np
 import cv2
-import torchvision.transforms as transforms
+from torchvision import transforms
 from PIL import Image
 
 class Preprocessing(object):
@@ -28,7 +28,7 @@ class Preprocessing(object):
             transforms.ToPILImage(),
             #transforms.CenterCrop((240, 320)),
             transforms.ColorJitter(brightness=0.75, hue=0.5),
-            transforms.PILToTensor()])
+            transforms.PILToTensor(),])
 
         image_transformed = transform(frame)
 
