@@ -124,7 +124,7 @@ if __name__ == "__main__":
                 frame = Preprocessing.GaussianBlur(frame, 1)
 
             if TRANSFORMS:
-                frame = Preprocessing.Transforms(frame)
+                frame = Preprocessing.Transform_base(frame)
 
             if PRESSED_KEY != '':
                 PRESSED_KEY = ''

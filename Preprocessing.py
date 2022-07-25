@@ -7,12 +7,10 @@ __maintainer__ = "Riccardo Salami"
 __email__ = "miniprojectsofficial@gmail.com"
 __status__ = "Computer Vision Exam"
 
-
 import torch
 import numpy as np
 import cv2
 from torchvision import transforms
-from PIL import Image
 
 class Preprocessing(object):
     def __init__(self):
@@ -22,19 +20,49 @@ class Preprocessing(object):
     def GaussianBlur(frame: np.ndarray, sigma:float):
         return cv2.GaussianBlur(frame, (5, 5), sigma)
 
-    def Transforms(frame: np.ndarray):
+    @classmethod
+    def to_np_frame(cls, frame: np.ndarray):
+        return np.swapaxes(np.swapaxes(np.uint8(frame), 0, 2), 0, 1)
+
+    @staticmethod
+    def Transform_base(frame: np.ndarray):
+        '''
+        Transform_base contains image transformation used both on camera and dataset images. It takes images coming
+        from different sources and and modifies them so that the output images all have the same structure
+        '''
 
         transform = transforms.Compose([
             transforms.ToPILImage(),
-            #transforms.CenterCrop((240, 320)),
-            transforms.ColorJitter(brightness=0.75, hue=0.5),
-            transforms.PILToTensor(),])
+            transforms.Resize(size=(360, 480)),             # 360p
+            transforms.PILToTensor(),
+            ])
 
         image_transformed = transform(frame)
-
-        frame = np.swapaxes(np.swapaxes(np.uint8(image_transformed.numpy()), 0, 2), 0, 1)
+        frame = Preprocessing.to_np_frame(image_transformed.numpy())
 
         return frame
+
+    @staticmethod
+    def Transform_train(frame: np.ndarray):
+
+        rand = transforms.Compose([
+            transforms.RandomRotation(degrees=(-90, 90), interpolation=transforms.InterpolationMode.BILINEAR),
+            transforms.RandomVerticalFlip(),
+            transforms.RandomHorizontalFlip(),
+        ])
+
+        transform = transforms.Compose([
+            transforms.GaussianBlur(5, sigma=(0.5, 0.5)),
+            transforms.RandomAutocontrast(p=0.1),
+            transforms.RandomApply(rand, p=0.3),
+        ])
+        
+        image_transformed = transform(frame)
+        frame = Preprocessing.to_np_frame(image_transformed.numpy())
+
+        return frame
+
+
 
 
 
