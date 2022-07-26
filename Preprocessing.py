@@ -11,6 +11,7 @@ import torch
 import numpy as np
 import cv2
 from torchvision import transforms
+import typing
 
 class Preprocessing(object):
     def __init__(self):
@@ -35,6 +36,8 @@ class Preprocessing(object):
             transforms.ToPILImage(),
             transforms.Resize(size=(360, 480)),             # 360p
             transforms.PILToTensor(),
+            transforms.ColorJitter(),
+            transforms.RandomAffine()
             ])
 
         image_transformed = transform(frame)
