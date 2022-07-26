@@ -11,7 +11,6 @@ import torch
 import numpy as np
 import cv2
 from torchvision import transforms
-import typing
 
 class Preprocessing(object):
     def __init__(self):
@@ -36,8 +35,6 @@ class Preprocessing(object):
             transforms.ToPILImage(),
             transforms.Resize(size=(360, 480)),             # 360p
             transforms.PILToTensor(),
-            transforms.ColorJitter(),
-            transforms.RandomAffine()
             ])
 
         image_transformed = transform(frame)
@@ -50,13 +47,15 @@ class Preprocessing(object):
 
         rand = transforms.Compose([
             transforms.RandomRotation(degrees=(-90, 90), interpolation=transforms.InterpolationMode.BILINEAR),
-            transforms.RandomVerticalFlip(),
-            transforms.RandomHorizontalFlip(),
+            transforms.RandomVerticalFlip(p=0.1),
+            transforms.RandomHorizontalFlip(p=0.1),
+            transforms.ColorJitter(),
+            transforms.RandomAutocontrast(p=0.1),
+            transforms.RandomAffine(degrees=(-90, 90), interpolation=transforms.InterpolationMode.BILINEAR),
         ])
 
         transform = transforms.Compose([
             transforms.GaussianBlur(5, sigma=(0.5, 0.5)),
-            transforms.RandomAutocontrast(p=0.1),
             transforms.RandomApply(rand, p=0.3),
         ])
         
