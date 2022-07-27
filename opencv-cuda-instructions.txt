@@ -28,7 +28,7 @@ LET'S GO
 13. in "search", look for "OPENCV_DNN_CUDA" and check this flag
 14. in "search", look for "ENABLE_FAST_MATH" and check this flag 
 15. in "search", look for "BUILD_opencv_world" and check this flag 
-16. in "search", look for "OPENCV_PYTHON_3" and check this flag 
+16. in "search", look for "BUILD_opencv_python3" and check this flag 
 17. in "search", look for "OPENCV_EXTRA_MODULES_PATH", click on browse option and point it to "opencv_contrib/modules"
 18. click again on "Configure"
  
