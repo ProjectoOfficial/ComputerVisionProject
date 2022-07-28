@@ -35,6 +35,8 @@ class Preprocessing(object):
             transforms.ToPILImage(),
             transforms.Resize(size=(360, 480)),             # 360p
             transforms.PILToTensor(),
+            #transforms.ColorJitter(),
+            #transforms.RandomAffine(10)
             ])
 
         image_transformed = transform(frame)
@@ -56,6 +58,7 @@ class Preprocessing(object):
 
         transform = transforms.Compose([
             transforms.GaussianBlur(5, sigma=(0.5, 0.5)),
+            #transforms.RandomAutocontrast(p=0.1),
             transforms.RandomApply(rand, p=0.3),
         ])
         

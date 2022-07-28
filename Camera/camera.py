@@ -27,6 +27,7 @@ import logging
 from RTCamera import RTCamera
 from Geometry import Geometry
 from Preprocessing import Preprocessing
+from Distance import Distance
 
 '''
 INSTRUCTION:
@@ -43,6 +44,16 @@ CALIBRATE = False
 BLUR = False
 TRANSFORMS = False
 FILENAME = "out"
+
+# Colors
+GREEN = (0, 255, 0)
+RED = (0, 0, 255)
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+
+# defining the fonts
+fonts = cv2.FONT_HERSHEY_COMPLEX
+
 
 def on_press(key):
     global PRESSED_KEY
@@ -133,6 +144,18 @@ if __name__ == "__main__":
 
                 
             edges = cv2.Canny(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), 220, 230)
+
+            Distance_ = Distance.get_Distance(frame)
+
+            # draw line as background of text
+            cv2.line(frame, (30, 30), (230, 30), RED, 32)
+            cv2.line(frame, (30, 30), (230, 30), BLACK, 28)
+
+            # Drawing Text on the screen
+            cv2.putText(
+                frame, f"Distance: {round(Distance_, 2)} CM", (30, 35),
+                fonts, 0.6, GREEN, 2)
+
 
             frame = frame.copy()
             rot = RTCamera.rotate_image(frame, 90)
