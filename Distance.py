@@ -55,6 +55,8 @@ class Distance(object):
             # and Known_distance(centimeters)
             Distance_ = Distance.Distance_finder(
                 Focal_length_found, Known_width, face_width_in_frame)
+        else:
+            Distance_ = 0
 
         return Distance_
 
