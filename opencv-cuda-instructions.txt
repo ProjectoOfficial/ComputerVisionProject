@@ -1,11 +1,14 @@
 REQUIREMENTS
 - Anaconda
 - Visual Studio
-- Cuda Toolkit (download it and install it with default options)
+- Cuda Toolkit (follow NVIDIA Instructions)
+    guide: https://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/index.html
     --> https://developer.nvidia.com/cuda-downloads
-- cuDNN (donwload it, extract it and copy it to "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/vXX.X/")
+    --> install cudatoolkit (in the environment): conda install -c anaconda cudatoolkit
+    --> install cuda (in the environment): conda install cuda -c nvidia
+- cuDNN (follow NVIDIA Instructions)
+    guide: https://docs.nvidia.com/deeplearning/cudnn/install-guide/index.html
     --> https://developer.nvidia.com/rdp/cudnn-archive
-    --> if during copy it is necessary to replace files, do it
 
 
 LET'S GO
@@ -54,28 +57,16 @@ follow these instruction only if you want to add opencv to an existing environme
 30. click again on "Configure"
 31. click on "Generate"
 
-open a new terminal (cmd)
-32. launch: "C:\Program Files\CMake\bin\cmake.exe" --build "C:\OpenCV_Build\build" --target INSTALL --config Release
-33. in "C:\OpenCV_Build\build\lib\python3\Release" exists "cv2.cp38-win_amd64.pyd"
-    it should exists also in "~\anaconda3\Lib\site-packages\cv2\python-x.x"
+open a new terminal (cmd) as ADMINISTRATOR
+32. launch: cmake --build "C:\OpenCV_Build\build" --target INSTALL --config Release
+33. Reboot the computer
 
-TEST SCRIPT
-import numpy as np
-import cv2
-import time
+34. remember that you have installed opencv with cuda support in a specific environment (default is (base))
 
-data = np.random.random((1024, 1024)).astype(np.float32)
-mat = np.stack([data, data], axis=2)
 
-cudaMat1 = cv2.cuda_GpuMat()
-cudaMat2 = cv2.cuda_GpuMat()
-cudaMat1.upload(mat)
-cudaMat2.upload(mat)
-
-start_time = time.time()
-cv2.cuda.gemm(cudaMat1, cudaMat2, 1, None, 0, None, 1)
-print("GPU: \t {}s ".format(time.time() - start_time))
-
-start_time = time.time()
-cv2.gemm(mat, mat, 1, None, 0, None, 1)
-print("CPU: \t {}s ".format(time.time() - start_time))
+My working configuration:
+- python 3.10.4
+- opencv version: 4.60
+- opencv contrib version: 4.60
+- cuda version: 11.7
+- cudnn version: 8.4.1.50
