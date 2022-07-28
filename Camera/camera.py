@@ -8,6 +8,7 @@ __maintainer__ = "Daniel Rossi"
 __email__ = "miniprojectsofficial@gmail.com"
 __status__ = "Computer Vision Exam"
 
+from enum import auto
 import os
 import sys
 
@@ -21,6 +22,7 @@ import numpy as np
 from datetime import datetime
 
 from pynput.keyboard import Listener
+import logging
 
 from RTCamera import RTCamera
 from Geometry import Geometry
@@ -35,7 +37,7 @@ INSTRUCTION:
 
 '''
 
-CAMERA_DEVICE = 1
+CAMERA_DEVICE = 0
 PRESSED_KEY = ''
 CALIBRATE = False
 BLUR = False
@@ -49,11 +51,11 @@ def on_press(key):
             if key.char in "qrgescibt": # add here a letter if you want to insert a new command
                 PRESSED_KEY = key.char
 
-
+logging.getLogger("imported_module").setLevel(logging.ERROR)
 listener = Listener(on_press=on_press)
 
 if __name__ == "__main__":
-    camera = RTCamera(CAMERA_DEVICE, fps=60, resolution=(480, 640), cuda=True)
+    camera = RTCamera(CAMERA_DEVICE, fps=60, resolution=(1920, 1080), cuda=False, auto_exposure=False)
     camera.start()
 
     start_fps = time.time()
@@ -133,11 +135,12 @@ if __name__ == "__main__":
             edges = cv2.Canny(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), 220, 230)
 
             frame = frame.copy()
+            rot = RTCamera.rotate_image(frame, 90)
 
             cv2.putText(frame, str(fps) + " fps", (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 255, 0), 2, cv2.LINE_AA)
-            H_stack = np.hstack((frame, cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)))
-            cv2.imshow("frame", H_stack)
-
+            #H_stack = np.hstack((frame, cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)))
+            cv2.imshow("frame", frame)
+            cv2.imshow("rot", rot)
     camera.stop()
     cv2.destroyAllWindows()
     print("closed")

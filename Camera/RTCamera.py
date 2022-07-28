@@ -7,6 +7,7 @@ __maintainer__ = "Daniel Rossi"
 __email__ = "miniprojectsofficial@gmail.com"
 __status__ = "Computer Vision Exam"
 
+from pydoc import resolve
 import cv2
 from threading import Thread
 import time
@@ -20,7 +21,7 @@ class RTCamera(object):
     def __init__(self, src:int=0, fps:float=60, resolution:tuple=(1920, 1080), cuda : bool = False, auto_exposure : bool = False):
 
         self.src            = src
-        self.cap            = cv2.VideoCapture(self.src, cv2.CAP_ANY)
+        self.cap            = cv2.VideoCapture(self.src)
 
         self.frame          = None
 
@@ -66,9 +67,10 @@ class RTCamera(object):
         '''
         it automatically tries to adjust the exposure of the camera then starts the camera thread
         ''' 
-        if self.cuda:
-            print("Sorry but OpenCV documentation is a joke")
-            self.cuda = False
+        if self.cuda: # user chose to use cuda
+            self.cuda = self._check_cuda_support(verbose=True) # we check if cuda is available
+            if self.cuda: # if cuda us really available, then we can use it
+                self.frame = cv2.cuda_GpuMat() 
 
         if self.auto_exposure:       
             self.__adjust_exposure()
@@ -89,20 +91,36 @@ class RTCamera(object):
         self.thread.join()
         self.cap.release()
 
+    @classmethod
+    def _check_cuda_support(cls, verbose:bool = False) -> bool:
+        try:
+            devices = cv2.cuda.getCudaEnabledDeviceCount()
+
+            if devices <= 0:
+                if verbose:
+                    print("Cannot find any GPU available")
+                return False
+            else:
+                cv2.cuda.setDevice(0)
+                if verbose:
+                    print(cv2.cuda.printShortCudaDeviceInfo(0))
+                return True
+        except:
+            if verbose:
+                print("Sorry but OpenCV documentation is a joke")
+            return False
+
     def __update(self):
         '''
         this function updates the current frame captured by the camera
         '''
         while True:
             if self.cap.isOpened():
-                if self.has_calibration:
-                    self.read_calibrated()
+                (ret, frame) = self.cap.read()
+                if self.cuda:
+                    self.frame.upload(frame)
                 else:
-                    (self.ret, self.frame) = self.cap.read()
-                    if self.cuda:
-                        tmp = self.frame
-                        self.frame = cv2.cuda_GpuMat()
-                        self.frame.upload(tmp)
+                    self.frame = frame
                         
                 if self.record:
                     self.output.write(self.frame)
@@ -122,6 +140,13 @@ class RTCamera(object):
         if self.frame is None:
             return None
 
+        if self.has_calibration:
+            self.calibrate()
+
+        if isinstance(self.frame, cv2.cuda_GpuMat):
+            dst = self.frame.download()
+            return dst
+
         if self.frame.shape[0] <= 0 or self.frame.shape[1] <= 0:
             return None
         
@@ -140,7 +165,7 @@ class RTCamera(object):
         self.output = cv2.VideoWriter(filename, self.fourcc, self.FPS, self.resolution)
         self.record = True
 
-    def save_frame(self, path):
+    def save_frame(self, path:str):
         '''
         this method saves the current frame
         '''
@@ -202,16 +227,15 @@ class RTCamera(object):
         '''
         this method takes the calibration parameters and calibrates the current frame
         '''
-        
-        (ret, frame) = self.cap.read()
-        h, w = frame.shape[:2]
-        newcameramtx, roi = cv2.getOptimalNewCameraMatrix(self.mtx, self.dist, (w,h), 1, (w,h))
-        mapx, mapy = cv2.initUndistortRectifyMap(self.mtx, self.dist, None, newcameramtx, (w,h), 5)
-        dst = cv2.undistort(frame, self.mtx, self.dist, None, newcameramtx)
-        # crop the image
-        x, y, w, h = roi
+        if not self.cuda:
+            h, w = self.frame.shape[:2]
+            newcameramtx, roi = cv2.getOptimalNewCameraMatrix(self.mtx, self.dist, (w,h), 1, (w,h))
+            mapx, mapy = cv2.initUndistortRectifyMap(self.mtx, self.dist, None, newcameramtx, (w,h), 5)
+            dst = cv2.undistort(self.frame, self.mtx, self.dist, None, newcameramtx)
+            # crop the image
+            x, y, w, h = roi
         dst = dst[y:y+h, x:x+w]
-        self.frame = cv2.resize(dst, (640, 480))
+        self.frame = cv2.cuda.resize(dst, self.resolution) if self.cuda else cv2.resize(dst, self.resolution)
 
     def __adjust_exposure(self):
         '''
@@ -219,16 +243,23 @@ class RTCamera(object):
         '''
         start_time = time.time()
         
-        read_interval = 1
+        read_interval = 0.5
         last_read = time.time()
 
         while True:
             if self.cap.isOpened():
                 if time.time() - last_read > read_interval:
-                    (self.ret, self.frame) = self.cap.read()
+                    (ret, frame) = self.cap.read()
                     last_read = time.time()
 
-                    avg = round(self.frame.mean(axis=(0, 1, 2)))
+                    avg = 0
+                    if self.cuda:
+                        n = np.array((frame.shape[0], frame.shape[1], frame.shape[2])).prod()
+                        sum = cv2.cuda.sum(frame)
+                        sum = np.array(sum).sum()
+                        avg = sum / n
+                    else:
+                        avg = round(frame.mean(axis=(0, 1, 2)))
 
                     if avg not in list(self.EXPOSURE_RANGE):
                         print(avg)
@@ -249,8 +280,16 @@ class RTCamera(object):
                 break
     
     @staticmethod
-    def rotate_image(image, angle):
-        image_center = tuple(np.array(image.shape[1::-1]) / 2)
-        rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
-        result = cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
+    def rotate_image(image: np.ndarray, angle: int) -> np.ndarray:
+        (h, w) = image.shape[:2]
+        center = (w//2, h//2)
+        rot_mat = cv2.getRotationMatrix2D(center, angle, 1.0)
+
+        result = None
+        if RTCamera._check_cuda_support():
+            result = cv2.cuda_GpuMat()
+            result.upload(image)
+            result = cv2.cuda.warpAffine(src=result, M=rot_mat, dsize=(w, h), flags=cv2.INTER_LINEAR).download()
+        else:
+            result = cv2.warpAffine(src=image, M=rot_mat, dsize=(h, w), flags=cv2.INTER_LINEAR)
         return result
