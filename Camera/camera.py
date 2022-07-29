@@ -12,6 +12,8 @@ from enum import auto
 import os
 import sys
 
+from cv2 import boundingRect
+
 current = os.path.dirname(os.path.realpath(__file__))  
 parent = os.path.dirname(current)
 sys.path.append(parent)
@@ -53,7 +55,6 @@ BLACK = (0, 0, 0)
 
 # defining the fonts
 fonts = cv2.FONT_HERSHEY_COMPLEX
-
 
 def on_press(key):
     global PRESSED_KEY
@@ -145,25 +146,25 @@ if __name__ == "__main__":
                 
             edges = cv2.Canny(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), 220, 230)
 
-            Distance_ = Distance.get_Distance(frame)
+            # Object detector (using face detector while waiting for Object detection to be ready)
+            face_detector = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+            bounding_boxes = face_detector.detectMultiScale(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), 1.3, 5)
+            distances = Distance().get_Distances(bounding_boxes)
 
-            # draw line as background of text
-            cv2.line(frame, (30, 30), (230, 30), RED, 32)
-            cv2.line(frame, (30, 30), (230, 30), BLACK, 28)
-
-            # Drawing Text on the screen
-            cv2.putText(
-                frame, f"Distance: {round(Distance_, 2)} CM", (30, 35),
-                fonts, 0.6, GREEN, 2)
-
+            for idx, (x, y, h, w) in enumerate(bounding_boxes):
+                if idx == len(distances):
+                    break
+                cv2.rectangle(frame, (x, y), (x + w, y + h), GREEN, 2)
+                cv2.putText(frame,"Distance: {:.2f}".format(distances[idx]), (x + 5, y + 20), fonts, 0.6, GREEN, 2)
+                
 
             frame = frame.copy()
-            rot = RTCamera.rotate_image(frame, 90)
+            #rot = RTCamera.rotate_image(frame, 90)
 
             cv2.putText(frame, str(fps) + " fps", (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 255, 0), 2, cv2.LINE_AA)
             #H_stack = np.hstack((frame, cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)))
             cv2.imshow("frame", frame)
-            cv2.imshow("rot", rot)
+            #cv2.imshow("rot", rot)
     camera.stop()
     cv2.destroyAllWindows()
     print("closed")
