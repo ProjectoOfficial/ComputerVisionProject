@@ -8,11 +8,9 @@ __maintainer__ = "Daniel Rossi"
 __email__ = "miniprojectsofficial@gmail.com"
 __status__ = "Computer Vision Exam"
 
-from enum import auto
 import os
 import sys
 
-from cv2 import boundingRect
 
 current = os.path.dirname(os.path.realpath(__file__))  
 parent = os.path.dirname(current)
