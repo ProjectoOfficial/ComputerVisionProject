@@ -36,7 +36,8 @@ INSTRUCTION:
     1) CAMERA DEVICE is the ID of the camera that is connected to your PC (if you only have one camera set i to 0). With this param, passed to the RTCamera constructor, you can 
         choose the camera to work with
     2) CALIBRATE allows to calculate camera distortion and calibrate the camera automatically before catching the first frame
-    3) FILENAME is the name that this script will use to store the video recording 
+    3) CHESSBOARD activates chessboard identification in a frame
+    4) FILENAME is the name that this script will use to store the video recording 
 
 '''
 
@@ -45,6 +46,7 @@ PRESSED_KEY = ''
 CALIBRATE = False
 BLUR = False
 TRANSFORMS = False
+CHESSBOARD = False
 FILENAME = "out"
 
 # Colors
@@ -60,14 +62,14 @@ def on_press(key):
     global PRESSED_KEY
     if hasattr(key, 'char'):
         if key.char is not None:
-            if key.char in "qrgescibt": # add here a letter if you want to insert a new command
+            if key.char in "qrgescibtf": # add here a letter if you want to insert a new command
                 PRESSED_KEY = key.char
 
 logging.getLogger("imported_module").setLevel(logging.ERROR)
 listener = Listener(on_press=on_press)
 
 if __name__ == "__main__":
-    camera = RTCamera(CAMERA_DEVICE, fps=60, resolution=(1920, 1080), cuda=False, auto_exposure=False)
+    camera = RTCamera(CAMERA_DEVICE, fps=60, resolution=(1920, 1080), cuda=True, auto_exposure=False)
     camera.start()
 
     start_fps = time.time()
@@ -133,6 +135,11 @@ if __name__ == "__main__":
             if PRESSED_KEY == 't':
                 TRANSFORMS = not TRANSFORMS
                 print("transform: {}".format(TRANSFORMS))
+
+            if PRESSED_KEY == 'f':
+                CHESSBOARD = not CHESSBOARD
+                print("Chessboard: {}".format(CHESSBOARD))
+                cv2.destroyAllWindows()
             
             if BLUR:
                 frame = Preprocessing.GaussianBlur(frame, 1)
@@ -140,11 +147,17 @@ if __name__ == "__main__":
             if TRANSFORMS:
                 frame = Preprocessing.Transform_base(frame)
 
+            if CHESSBOARD:
+                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                ret, corners = cv2.findChessboardCorners(gray, (7,9), cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_FAST_CHECK)
+                if ret:
+                    cv2.drawChessboardCorners(frame, (7,9), corners, ret)
+
             if PRESSED_KEY != '':
                 PRESSED_KEY = ''
 
                 
-            edges = cv2.Canny(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), 220, 230)
+            # edges = cv2.Canny(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), 220, 230)
 
             # Object detector (using face detector while waiting for Object detection to be ready)
             face_detector = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")

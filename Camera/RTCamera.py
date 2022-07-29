@@ -7,7 +7,6 @@ __maintainer__ = "Daniel Rossi"
 __email__ = "miniprojectsofficial@gmail.com"
 __status__ = "Computer Vision Exam"
 
-from pydoc import resolve
 import cv2
 from threading import Thread
 import time

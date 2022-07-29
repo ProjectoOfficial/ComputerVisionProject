@@ -42,7 +42,6 @@ class Geometry(object):
         '''
         this method calculates the camera calibration parameters through images previously acquired by the user by using chessboard method
         '''
-        calibrated = False
 
         for filename in tqdm(self.images, desc="Calibrating camera"):
             img = cv2.imread(filename)
@@ -52,7 +51,6 @@ class Geometry(object):
             ret, corners = cv2.findChessboardCorners(gray, self.checkboard, find_flags)
 
             if ret:
-                calibrated = True
                 self.object_points.append(self.obj_points)
 
                 corners2 = cv2.cornerSubPix(gray, corners, (11, 11), (-1, -1), self.criteria)
