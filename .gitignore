@@ -6,3 +6,6 @@ __pycache__
 epoch_log
 out.mp4
 .vscode
+traced_model.pt
+yolov7.pt
+coco
