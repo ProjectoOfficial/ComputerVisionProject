@@ -1,4 +1,3 @@
-from types import NoneType
 import torch
 import cv2 as cv
 import numpy as np
@@ -116,7 +115,7 @@ class Sign_Detector():
             self.maxRadius = minore //10 #the circle must not be bigger than 10% of the image
         circles = cv.HoughCircles(img, method=self.method, dp=self.dp, minDist=self.minDist, param1=self.param1, param2=self.param2, minRadius=self.minRadius, maxRadius=self.maxRadius)
         self.maxRadius = previous
-        if type(circles) == NoneType: #cv.HoughCircles() return a NoneType object when it cannot find any circles
+        if circles is None: #cv.HoughCircles() return a NoneType object when it cannot find any circles
             return np.zeros(1)
         circles = np.uint16(np.around(circles))
         
