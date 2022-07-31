@@ -11,7 +11,7 @@ import typing
 import time
 import matplotlib.pyplot as plt
 
-ROOT = Path.cwd()
+ROOT = os.path.dirname(os.path.realpath(__file__))
 
 class Sign_Matcher():
     def __init__(self, stride: int = 1) -> typing.List:
@@ -89,9 +89,9 @@ class Sign_Matcher():
         
         bests = []
         for el in min_methods:
-            bests.append(min(el))
+            bests.append(el.index(min(el)))
         for el in max_methods:
-            bests.append(min(el))
+            bests.append(el.index(max(el)))
         print("--- %s seconds ---" % (time.time() - start_time))
         return bests
         
@@ -112,8 +112,8 @@ class Sign_Detector():
     def detect(self, img: np.ndarray) -> np.ndarray:
         previous = self.maxRadius
         if self.maxRadius == 0:
-            minore = img[0] if img[0] < img[1] else img[1]
-            self.maxRadius = minore //10 
+            minore = img.shape[0] if img.shape[0] < img.shape[1] else img.shape[1]
+            self.maxRadius = minore //10 #the circle must not be bigger than 10% of the image
         circles = cv.HoughCircles(img, method=self.method, dp=self.dp, minDist=self.minDist, param1=self.param1, param2=self.param2, minRadius=self.minRadius, maxRadius=self.maxRadius)
         self.maxRadius = previous
         if type(circles) == NoneType: #cv.HoughCircles() return a NoneType object when it cannot find any circles
@@ -138,84 +138,39 @@ def draw_circle(img, circle):
     cv.imshow('Circles detected by Hough Transform:', img)
 
 def main():
-    """
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--source', type=str, required=True)
-    args = parser.parse_args()
-    img = cv.imread(args.source)
-    #cv.imshow('Original Image:', img)
-    img = cv.GaussianBlur(img, (5,5), 1)
-    #cv.imshow('Gaussian blurred Image:', img)
-    edges = cv.Canny(img, 150, 300)
-    cv.imshow('Edges detected by Canny:', edges)
-    img = cv.cvtColor(img, cv.COLOR_RGB2GRAY)
-    cimg = cv.imread(args.source)
-    original = cv.imread(args.source)
-
-    """
-    ROOT = Path.cwd()
-    dir = ROOT / 'photos'
-    img = cv.imread(str(dir / 'IMG_20220731_153855.jpg'),0) #already in grayscale
+    
+    ROOT = os.path.dirname(os.path.realpath(__file__))
+    dir = ROOT + '\\photos'
+    img = cv.imread(str(dir + '\\IMG_20220731_153855.jpg'),0) #already in grayscale
     img = cv.GaussianBlur(img, (5,5), 0)
-    img = cv.resize(img, (1000, 750), interpolation=cv.INTER_LINEAR)
+    img = cv.resize(img, (750, 1000), interpolation=cv.INTER_LINEAR)
     cv.imshow('Canny', cv.Canny(img, 200, 400))
-    cv.imshow('Canny', cv.adaptiveThreshold(img))
     
     original = img
         
-    """
-    speed-signs è un vettore 4-dimensionale, le ultime 3 dimensioni sono H, W e C dei rettangoli,
-    la prima serve per contenerli tutti, fsa da indice
-    """
     
-    """
-    adesso in i avremo:
-    i[0] --> coordinata x del centro
-    i[1] --> coordinata y del centro
-    i[2] --> raggio
-    quindi, se voglio disegnare un rettangolo, se voglio il vertice top-left
-    mi basta partire dal centro del cerchio, togliere sia alla coordinata x
-    che alla y il raggio, così mi sposto a sx e in alto di i[2] pixel, per il
-    vertice bottom-right il contrario (sommo)
-    """
-
-    """
-    speed_signs = []
-    for i in circles[0,:]:
-        # draw the outer circle
-        cv.circle(cimg,(i[0],i[1]),i[2],(0,255,0),2)
-        # draw the center of the circle
-        cv.circle(cimg,(i[0],i[1]),2,(0,0,255),3)
-        top_left = (i[0] - i[2], i[1] - i[2])
-        bottom_right = (i[0] + i[2], i[1] + i[2])
-        cv.rectangle(cimg, top_left, bottom_right, (0, 255, 255))
-        sign = original[top_left[1] : bottom_right[1], top_left[0] : bottom_right[0],  : ]
-        speed_signs.append(sign)
-        
-        
-    cv.imshow('Circles detected by Hough Transform:', cimg)
-    """
-    sd = Sign_Detector(hough_gradient=False, param2=90)
+    sd = Sign_Detector(hough_gradient=False, param2=55)
     circles = sd.detect(img=img)
     if len(circles.shape) < 3:
         print(f"Non sono stati trovati cerchi!")
         
     else:
-        circle = circles[0, 0]
+        circle = circles[0, 0] #we take the first of the detected circles
         draw_circle(img, circle)
         sm = Sign_Matcher()
-        for i in circle[0, :]:
-            top_left = (i[0] - i[2], i[1] - i[2])
-            bottom_right = (i[0] + i[2], i[1] + i[2])
-            sign = original[top_left[1] : bottom_right[1], top_left[0] : bottom_right[0]]
-            #now we scale it
-            sign = cv.resize(sign, (200, 200), interpolation=cv.INTER_LINEAR)
-            #then we binarize the piece of image that contains the traffic sign
-            _, sign = cv.threshold(sign, 0, 255, cv.THRESH_BINARY+cv.THRESH_OTSU)
-            
-            bests = sm.match(sign)
-            print(f"The best results, based on the various methods, are:")
-            print(bests)
+        i = circle
+        top_left = (i[0] - i[2], i[1] - i[2])
+        bottom_right = (i[0] + i[2], i[1] + i[2])
+        sign = original[top_left[1] : bottom_right[1], top_left[0] : bottom_right[0]]
+        #now we scale it
+        sign = cv.resize(sign, (200, 200), interpolation=cv.INTER_LINEAR)
+        #then we binarize the piece of image that contains the traffic sign
+        _, sign = cv.threshold(sign, 0, 255, cv.THRESH_BINARY+cv.THRESH_OTSU)
+        
+        bests = sm.match(sign)
+        #devo finire di mettere a posto la restituzione dei valori
+        #print(f"The best results, based on the various methods, are:")
+        #print(bests)
 
 
 
