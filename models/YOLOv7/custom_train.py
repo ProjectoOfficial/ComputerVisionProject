@@ -1,4 +1,5 @@
 import argparse
+from calendar import EPOCH
 import logging
 import math
 import os
@@ -6,7 +7,7 @@ import random
 import time
 from copy import deepcopy
 from pathlib import Path
-from threading import Thread
+from threading import Thread, local
 
 import numpy as np
 import torch.distributed as dist
@@ -27,21 +28,19 @@ from models.yolo import Model
 from utils.autoanchor import check_anchors
 from utils.datasets import create_dataloader
 from utils.general import labels_to_class_weights, increment_path, labels_to_image_weights, init_seeds, \
-    fitness, strip_optimizer, get_latest_run, check_dataset, check_file, check_git_status, check_img_size, \
-    check_requirements, print_mutation, set_logging, one_cycle, colorstr
+    fitness, strip_optimizer, check_dataset, check_file, check_img_size, print_mutation, set_logging, one_cycle, colorstr
 from utils.google_utils import attempt_download
 from utils.loss import ComputeLoss, ComputeLossOTA
-from utils.plots import plot_images, plot_labels, plot_results, plot_evolution
+from utils.plots import plot_images, plot_results, plot_evolution
 from utils.torch_utils import ModelEMA, select_device, intersect_dicts, torch_distributed_zero_first, is_parallel
-from utils.wandb_logging.wandb_utils import WandbLogger, check_wandb_resume
+from utils.wandb_logging.wandb_utils import WandbLogger
+from BDDDataset import BDDDataset
 
 logger = logging.getLogger(__name__)
 
 
-def train(hyp, opt, device, tb_writer=None):
+def train(data_dir, hyp, save_dir, epochs, batch_size, total_batch_size, weights, rank, evolve, device, tb_writer=None):
     logger.info(colorstr('hyperparameters: ') + ', '.join(f'{k}={v}' for k, v in hyp.items()))
-    save_dir, epochs, batch_size, total_batch_size, weights, rank = \
-        Path(opt.save_dir), opt.epochs, opt.batch_size, opt.total_batch_size, opt.weights, opt.global_rank
 
     # Directories
     wdir = save_dir / 'weights'
@@ -57,33 +56,11 @@ def train(hyp, opt, device, tb_writer=None):
         yaml.dump(vars(opt), f, sort_keys=False)
 
     # Configure
-    plots = not opt.evolve  # create plots
+    plots = not evolve  # create plots
     cuda = device.type != 'cpu'
     init_seeds(2 + rank)
-    with open(opt.data) as f:
-        data_dict = yaml.load(f, Loader=yaml.SafeLoader)  # data dict
-    is_coco = opt.data.endswith('coco.yaml')
 
-    if sys.platform == 'win32' and is_coco:
-        dir = str(Path(__file__).resolve().parent)
-        data_dict['train'] = os.path.abspath(dir+data_dict['train'])
-        data_dict['val'] = os.path.abspath(dir+data_dict['val'])
-        data_dict['test'] = os.path.abspath(dir+data_dict['test'])
-
-    # Logging- Doing this before checking the dataset. Might update data_dict
-    loggers = {'wandb': None}  # loggers dict
-    if rank in [-1, 0]:
-        opt.hyp = hyp  # add hyperparameters
-        run_id = torch.load(weights).get('wandb_id') if weights.endswith('.pt') and os.path.isfile(weights) else None
-        wandb_logger = WandbLogger(opt, Path(opt.save_dir).stem, run_id, data_dict)
-        loggers['wandb'] = wandb_logger.wandb
-        data_dict = wandb_logger.data_dict
-        if wandb_logger.wandb:
-            weights, epochs, hyp = opt.weights, opt.epochs, opt.hyp  # WandbLogger might update weights, epochs if resuming
-
-    nc = 1 if opt.single_cls else int(data_dict['nc'])  # number of classes
-    names = ['item'] if opt.single_cls and len(data_dict['names']) != 1 else data_dict['names']  # class names
-    assert len(names) == nc, '%g names found for nc=%g dataset in %s' % (len(names), nc, opt.data)  # check
+    dataset = BDDDataset(data_dir, 'train')
 
     # Model
     pretrained = weights.endswith('.pt')
@@ -91,18 +68,14 @@ def train(hyp, opt, device, tb_writer=None):
         with torch_distributed_zero_first(rank):
             attempt_download(weights)  # download if not found locally
         ckpt = torch.load(weights, map_location=device)  # load checkpoint
-        model = Model(opt.cfg or ckpt['model'].yaml, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
-        exclude = ['anchor'] if (opt.cfg or hyp.get('anchors')) and not opt.resume else []  # exclude keys
+        model = Model(cfg or ckpt['model'].yaml, ch=3, nc=dataset.num_classes(), anchors=hyp.get('anchors')).to(device)  # create
+        exclude = ['anchor'] if (cfg or hyp.get('anchors')) and not opt.resume else []  # exclude keys
         state_dict = ckpt['model'].float().state_dict()  # to FP32
         state_dict = intersect_dicts(state_dict, model.state_dict(), exclude=exclude)  # intersect
         model.load_state_dict(state_dict, strict=False)  # load
         logger.info('Transferred %g/%g items from %s' % (len(state_dict), len(model.state_dict()), weights))  # report
     else:
-        model = Model(opt.cfg, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
-    with torch_distributed_zero_first(rank):
-        check_dataset(data_dict)  # check
-    train_path = data_dict['train']
-    test_path = data_dict['val']
+        model = Model(opt.cfg, ch=3, nc=dataset.num_classes(), anchors=hyp.get('anchors')).to(device)  # create
 
     # Freeze
     freeze = []  # parameter names to freeze (full or partial)
@@ -533,6 +506,7 @@ parent = os.path.dirname(current)
 sys.path.append(parent)
 
 if __name__ == '__main__':
+    
     parser = argparse.ArgumentParser()
     parser.add_argument('--weights', type=str, default=current+r'\yolov7.pt', help='initial weights path')
     parser.add_argument('--cfg', type=str, default=current+r'\cfg\training\yolov7.yaml', help='model.yaml path')
@@ -569,57 +543,69 @@ if __name__ == '__main__':
     parser.add_argument('--save_period', type=int, default=-1, help='Log model after every "save_period" epoch')
     parser.add_argument('--artifact_alias', type=str, default="latest", help='version of dataset artifact to be used')
     opt = parser.parse_args()
+    
+    DATA_DIR = current+r'\data\bdd100k'
+    WEIGHTS = current+r'\yolov7.pt'
+    CFG = current+r'\cfg\training\yolov7.yaml'
+    HYP = current+r'\data\coco.yaml'
+    NAME = 'exp'
+    RESULTS_DIR = current+r'\runs\train'
+    BATCH_SIZE = 2
+    DEVICE = 'cuda'
+    LOCAL_RANK = -1
+    EVOLVE = False
+    NO_TEST = False
+    NO_SAVE = False
+    BUCKET = False
+    EPOCHS = 1
+
+    settings = {'WEIGHTS': WEIGHTS, 'CFG': CFG, 'HYP': HYP, 'NAME': NAME, 'RESULT_DIR': RESULTS_DIR, 'BATCH_SIZE': BATCH_SIZE,
+                'DEVICE': DEVICE, 'LOCAL_RANK': LOCAL_RANK, 'EVOLVE': EVOLVE, 'NO_TEST': NO_TEST, 'NO_SAVE': NO_SAVE, 'BUCKET': BUCKET}
 
     # Set DDP variables
-    opt.world_size = int(os.environ['WORLD_SIZE']) if 'WORLD_SIZE' in os.environ else 1
-    opt.global_rank = int(os.environ['RANK']) if 'RANK' in os.environ else -1
-    set_logging(opt.global_rank)
+    world_size = int(os.environ['WORLD_SIZE']) if 'WORLD_SIZE' in os.environ else 1
+    global_rank = int(os.environ['RANK']) if 'RANK' in os.environ else -1
+    set_logging(global_rank)
     #if opt.global_rank in [-1, 0]:
     #    check_git_status()
     #    check_requirements()
+    settings['WORLD_SIZE'] = world_size
+    settings['GLOBAL_RANK'] = global_rank
 
-    # Resume
-    wandb_run = check_wandb_resume(opt)
-    if opt.resume and not wandb_run:  # resume an interrupted run
-        ckpt = opt.resume if isinstance(opt.resume, str) else get_latest_run()  # specified or most recent path
-        assert os.path.isfile(ckpt), 'ERROR: --resume checkpoint does not exist'
-        apriori = opt.global_rank, opt.local_rank
-        with open(Path(ckpt).parent.parent / 'opt.yaml') as f:
-            opt = argparse.Namespace(**yaml.load(f, Loader=yaml.SafeLoader))  # replace
-        opt.cfg, opt.weights, opt.resume, opt.batch_size, opt.global_rank, opt.local_rank = '', ckpt, True, opt.total_batch_size, *apriori  # reinstate
-        logger.info('Resuming training from %s' % ckpt)
-    else:
-        # opt.hyp = opt.hyp or ('hyp.finetune.yaml' if opt.weights else 'hyp.scratch.yaml')
-        opt.data, opt.cfg, opt.hyp = check_file(opt.data), check_file(opt.cfg), check_file(opt.hyp)  # check files
-        assert len(opt.cfg) or len(opt.weights), 'either --cfg or --weights must be specified'
-        opt.img_size.extend([opt.img_size[-1]] * (2 - len(opt.img_size)))  # extend to 2 sizes (train, test)
-        opt.name = 'evolve' if opt.evolve else opt.name
-        opt.save_dir = increment_path(Path(opt.project) / opt.name, exist_ok=opt.exist_ok | opt.evolve)  # increment run
+    weights = check_file(WEIGHTS)
+    cfg = check_file(CFG)
+    hyp = check_file(HYP)
+    assert len(cfg) or len(weights), 'either cfg or weights must be specified'
+
+    save_dir = increment_path(Path(RESULTS_DIR) / NAME, exist_ok=False)  # increment run
+    settings['SAVE_DIR'] = save_dir
 
     # DDP mode
-    opt.total_batch_size = opt.batch_size
-    device = select_device(opt.device, batch_size=opt.batch_size)
-    if opt.local_rank != -1:
-        assert torch.cuda.device_count() > opt.local_rank
-        torch.cuda.set_device(opt.local_rank)
-        device = torch.device('cuda', opt.local_rank)
+    total_batch_size = BATCH_SIZE
+    device = select_device(DEVICE, batch_size=BATCH_SIZE)
+    if LOCAL_RANK != -1:
+        assert torch.cuda.device_count() > LOCAL_RANK
+        torch.cuda.set_device(LOCAL_RANK)
+        device = torch.device('cuda', LOCAL_RANK)
         dist.init_process_group(backend='nccl', init_method='env://')  # distributed backend
-        assert opt.batch_size % opt.world_size == 0, '--batch-size must be multiple of CUDA device count'
-        opt.batch_size = opt.total_batch_size // opt.world_size
+        assert BATCH_SIZE % world_size == 0, '--batch-size must be multiple of CUDA device count'
+        BATCH_SIZE = total_batch_size // world_size
+    settings['TOTAL_BATCH_SIZE'] = total_batch_size
+    settings['BATCH_SIZE'] = BATCH_SIZE
 
     # Hyperparameters
-    with open(opt.hyp) as f:
+    with open(HYP) as f:
         hyp = yaml.load(f, Loader=yaml.SafeLoader)  # load hyps
 
     # Train
-    logger.info(opt)
-    if not opt.evolve:
+    logger.info(settings)
+    if not EVOLVE:
         tb_writer = None  # init loggers
-        if opt.global_rank in [-1, 0]:
+        if global_rank in [-1, 0]:
             prefix = colorstr('tensorboard: ')
-            logger.info(f"{prefix}Start with 'tensorboard --logdir {opt.project}', view at http://localhost:6006/")
-            tb_writer = SummaryWriter(opt.save_dir)  # Tensorboard
-        train(hyp, opt, device, tb_writer)
+            logger.info(f"{prefix}Start with 'tensorboard --logdir {RESULTS_DIR}', view at http://localhost:6006/")
+            tb_writer = SummaryWriter(save_dir)  # Tensorboard
+        train(DATA_DIR, hyp, Path(save_dir), EPOCHS, BATCH_SIZE, total_batch_size, weights, global_rank, EVOLVE, device, tb_writer)
 
     # Evolve hyperparameters (optional)
     else:
@@ -655,17 +641,17 @@ if __name__ == '__main__':
                 'copy_paste': (1, 0.0, 1.0),  # segment copy-paste (probability)
                 'paste_in': (1, 0.0, 1.0)}    # segment copy-paste (probability)
         
-        with open(opt.hyp, errors='ignore') as f:
+        with open(hyp, errors='ignore') as f:
             hyp = yaml.safe_load(f)  # load hyps dict
             if 'anchors' not in hyp:  # anchors commented in hyp.yaml
                 hyp['anchors'] = 3
                 
-        assert opt.local_rank == -1, 'DDP mode not implemented for --evolve'
-        opt.notest, opt.nosave = True, True  # only test/save final epoch
+        assert LOCAL_RANK == -1, 'DDP mode not implemented for --evolve'
+        NO_TEST, NO_SAVE = True, True  # only test/save final epoch
         # ei = [isinstance(x, (int, float)) for x in hyp.values()]  # evolvable indices
-        yaml_file = Path(opt.save_dir) / 'hyp_evolved.yaml'  # save best result here
-        if opt.bucket:
-            os.system('gsutil cp gs://%s/evolve.txt .' % opt.bucket)  # download evolve.txt if exists
+        yaml_file = Path(save_dir) / 'hyp_evolved.yaml'  # save best result here
+        if BUCKET:
+            os.system('gsutil cp gs://%s/evolve.txt .' % BUCKET)  # download evolve.txt if exists
 
         for _ in range(300):  # generations to evolve
             if Path('evolve.txt').exists():  # if evolve.txt exists: select best hyps and mutate
@@ -700,10 +686,10 @@ if __name__ == '__main__':
                 hyp[k] = round(hyp[k], 5)  # significant digits
 
             # Train mutation
-            results = train(hyp.copy(), opt, device)
+            results = train(DATA_DIR, hyp.copy(), Path(save_dir), EPOCHS, BATCH_SIZE, total_batch_size, weights, global_rank, EVOLVE, device)
 
             # Write mutation results
-            print_mutation(hyp.copy(), results, yaml_file, opt.bucket)
+            print_mutation(hyp.copy(), results, yaml_file, BUCKET)
 
         # Plot results
         plot_evolution(yaml_file)

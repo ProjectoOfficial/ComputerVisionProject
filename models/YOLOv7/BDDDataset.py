@@ -13,7 +13,7 @@ def collate_fn(batch):
     return tuple(batch)
 
 class BDDDataset(Dataset):
-    def __init__(self, data_dir, flag, label_list, transforms = None):
+    def __init__(self, data_dir, flag, transforms = None):
 
         self.data_dir = data_dir
         self.transforms = transforms
@@ -22,17 +22,24 @@ class BDDDataset(Dataset):
             self.img_dir = os.path.join(data_dir, "images", '100k', 'train')
             self.json_dir = os.path.join(data_dir, "labels", 'det_20','det_train.json')
 
-        if flag == 'val':
+        elif flag == 'val':
             self.img_dir = os.path.join(data_dir, "images", '100k', 'val')
             self.json_dir = os.path.join(data_dir, "labels", 'det_20','det_val.json')
 
-        if flag == 'test':
+        elif flag == 'test':
             self.img_dir = os.path.join(data_dir, "images", '100k', 'test')
 
         self.names = [name[:-4] for name in list(filter(lambda x: x.endswith(".jpg"), os.listdir(self.img_dir)))]
         self.label_data = json.load(open(self.json_dir, 'r', encoding='UTF-8'))
         self.label_data = {x['name']: x for x in self.label_data}
-        self.label_list = label_list
+        
+        list_labels = []
+        for name in self.label_data.keys():
+            if 'labels' in self.label_data[name]:
+                for element in self.label_data[name]['labels']:
+                    list_labels.append(element['category'])
+        self.label_list = set(list_labels)
+        return
 
     def __getitem__(self, index):
         name = self.names[index]
@@ -69,3 +76,9 @@ class BDDDataset(Dataset):
         if len(self.names) == 0:
             raise Exception("\n{} is an empty dir, please download the dataset and the labels".format(self.data_dir))
         return len(self.names)
+
+    def num_classes(self):
+        return len(self.label_list)
+
+    def labels(self):
+        return self.label_list
