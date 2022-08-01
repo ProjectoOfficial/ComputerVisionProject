@@ -10,3 +10,5 @@ traced_model.pt
 yolov7.pt
 coco
 exp
+wandb
+runs

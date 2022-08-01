@@ -16,6 +16,7 @@ class BDDDataset(Dataset):
     def __init__(self, data_dir, flag, transforms = None):
 
         self.data_dir = data_dir
+        self.flag = flag
         self.transforms = transforms
         
         if flag == 'train':
@@ -30,16 +31,20 @@ class BDDDataset(Dataset):
             self.img_dir = os.path.join(data_dir, "images", '100k', 'test')
 
         self.names = [name[:-4] for name in list(filter(lambda x: x.endswith(".jpg"), os.listdir(self.img_dir)))]
-        self.label_data = json.load(open(self.json_dir, 'r', encoding='UTF-8'))
-        self.label_data = {x['name']: x for x in self.label_data}
         
-        list_labels = []
-        for name in self.label_data.keys():
-            if 'labels' in self.label_data[name]:
-                for element in self.label_data[name]['labels']:
-                    list_labels.append(element['category'])
-        self.label_list = set(list_labels)
-        return
+        if flag != 'test':
+            self.label_data = json.load(open(self.json_dir, 'r', encoding='UTF-8'))
+            self.label_data = {x['name']: x for x in self.label_data}
+        
+            list_labels = []
+            for name in self.label_data.keys():
+                if 'labels' in self.label_data[name]:
+                    for element in self.label_data[name]['labels']:
+                        list_labels.append(element['category'])
+            self.label_list = list(set(list_labels))
+        
+            self.n = len(self.names)
+            self.indices = range(self.n)
 
     def __getitem__(self, index):
         name = self.names[index]
@@ -78,7 +83,13 @@ class BDDDataset(Dataset):
         return len(self.names)
 
     def num_classes(self):
-        return len(self.label_list)
+        if self.flag != 'test':
+            return len(self.label_list)
+        else:
+            return 0
 
     def labels(self):
-        return self.label_list
+        if self.flag != 'test':
+            return self.label_list
+        else:
+            return []
