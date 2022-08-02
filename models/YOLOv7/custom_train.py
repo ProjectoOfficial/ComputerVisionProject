@@ -71,7 +71,8 @@ def train(data_dir, hyp, save_dir, epochs, batch_size, total_batch_size, weights
     init_seeds(2 + rank)
 
     # TrainSet
-    trainset = BDDDataset(data_dir, 'train', Preprocessing.Transform_base)
+    preprocess = Preprocessing()
+    trainset = BDDDataset(data_dir, 'train', preprocess.base_transform)
     nc = trainset.n
     names = trainset.names
     

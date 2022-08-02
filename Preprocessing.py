@@ -12,7 +12,7 @@ import numpy as np
 import cv2
 from torchvision import transforms
 
-class Preprocessing(object):
+class Preprocessing():
 
     def __init__(self):
         global base_transform
@@ -20,7 +20,8 @@ class Preprocessing(object):
             transforms.ToPILImage(),
             transforms.Resize(size=(360, 480)),             # 360p
             transforms.PILToTensor()
-            ])
+            ])        
+        self.base_transform = base_transform
 
     @staticmethod
     def GaussianBlur(frame: np.ndarray, sigma:float):
@@ -64,6 +65,7 @@ class Preprocessing(object):
         frame = Preprocessing.to_np_frame(image_transformed.numpy())
 
         return frame
+
 
 
 
