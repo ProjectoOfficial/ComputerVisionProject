@@ -13,8 +13,14 @@ import cv2
 from torchvision import transforms
 
 class Preprocessing(object):
+
     def __init__(self):
-        pass
+        global base_transform
+        base_transform = transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.Resize(size=(360, 480)),             # 360p
+            transforms.PILToTensor()
+            ])
 
     @staticmethod
     def GaussianBlur(frame: np.ndarray, sigma:float):
@@ -31,15 +37,7 @@ class Preprocessing(object):
         from different sources and and modifies them so that the output images all have the same structure
         '''
 
-        transform = transforms.Compose([
-            transforms.ToPILImage(),
-            transforms.Resize(size=(360, 480)),             # 360p
-            transforms.PILToTensor(),
-            #transforms.ColorJitter(),
-            #transforms.RandomAffine(10)
-            ])
-
-        image_transformed = transform(frame)
+        image_transformed = base_transform(frame)
         frame = Preprocessing.to_np_frame(image_transformed.numpy())
 
         return frame

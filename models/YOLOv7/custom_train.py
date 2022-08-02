@@ -2,13 +2,21 @@ import argparse
 from calendar import EPOCH
 import logging
 import math
-import os
 import random
 import time
 from copy import deepcopy
 from pathlib import Path
 from threading import Thread, local
+
+import os
+import sys
+
+current = os.path.dirname(os.path.realpath(__file__))  
+parent = os.path.dirname(current)
+sys.path.append(str(Path(parent).parent))
+
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
+from Preprocessing import Preprocessing
 
 import numpy as np
 import torch.distributed as dist
@@ -63,7 +71,7 @@ def train(data_dir, hyp, save_dir, epochs, batch_size, total_batch_size, weights
     init_seeds(2 + rank)
 
     # TrainSet
-    trainset = BDDDataset(data_dir, 'train')
+    trainset = BDDDataset(data_dir, 'train', Preprocessing.Transform_base)
     nc = trainset.n
     names = trainset.names
     
@@ -480,14 +488,6 @@ def train(data_dir, hyp, save_dir, epochs, batch_size, total_batch_size, weights
         dist.destroy_process_group()
     torch.cuda.empty_cache()
     return results
-
-
-import os
-import sys
-
-current = os.path.dirname(os.path.realpath(__file__))  
-parent = os.path.dirname(current)
-sys.path.append(parent)
 
 if __name__ == '__main__':
     
