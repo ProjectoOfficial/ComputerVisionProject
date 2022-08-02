@@ -8,6 +8,7 @@ import time
 from copy import deepcopy
 from pathlib import Path
 from threading import Thread, local
+os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
 import numpy as np
 import torch.distributed as dist
@@ -63,8 +64,8 @@ def train(data_dir, hyp, save_dir, epochs, batch_size, total_batch_size, weights
 
     # TrainSet
     trainset = BDDDataset(data_dir, 'train')
-    nc = trainset.num_classes()
-    names = trainset.labels()
+    nc = trainset.n
+    names = trainset.names
     
     # TestSet
     testset = BDDDataset(data_dir, 'test')
@@ -230,16 +231,16 @@ def train(data_dir, hyp, save_dir, epochs, batch_size, total_batch_size, weights
     #Trainloader
     trainloader = torch.utils.data.DataLoader(trainset, batch_size)
 
-    mlc = np.concatenate(names, 0)[:, 0].max()  # max label class
+    mlc = np.concatenate(trainset.labels, 0)[:, 0].max()  # max label class
     nb = len(trainloader)  # number of batches
-    assert mlc < nc, 'Label class %g exceeds nc=%g in %s. Possible class labels are 0-%g' % (mlc, nc, opt.data, nc - 1)
+    assert mlc < nc, 'Label class %g exceeds nc=%g . Possible class labels are 0-%g' % (mlc, nc, nc - 1)
 
     # Process 0
     if rank in [-1, 0]:
         testloader = torch.utils.data.DataLoader(testset, batch_size)
 
         if not opt.resume:
-            labels = np.concatenate(trainset.labels(), 0)
+            labels = np.concatenate(trainset.labels, 0)
             c = torch.tensor(labels[:, 0])  # classes
             # cf = torch.bincount(c.long(), minlength=nc) + 1.  # frequency
             # model._initialize_biases(cf.to(device))
@@ -293,7 +294,7 @@ def train(data_dir, hyp, save_dir, epochs, batch_size, total_batch_size, weights
             # Generate indices
             if rank in [-1, 0]:
                 cw = model.class_weights.cpu().numpy() * (1 - maps) ** 2 / nc  # class weights
-                iw = labels_to_image_weights(trainset.labels(), nc=nc, class_weights=cw)  # image weights
+                iw = labels_to_image_weights(trainset.labels, nc=nc, class_weights=cw)  # image weights
                 trainset.indices = random.choices(range(trainset.n), weights=iw, k=trainset.n)  # rand weighted idx
             # Broadcast if DDP
             if rank != -1:

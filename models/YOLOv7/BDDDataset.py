@@ -1,7 +1,9 @@
 import torch
 import os
+import numpy as np
 from PIL import Image
 from torch.utils.data import Dataset
+from tqdm import tqdm
 import json
 
 def collate_fn(batch):
@@ -30,19 +32,31 @@ class BDDDataset(Dataset):
         elif flag == 'test':
             self.img_dir = os.path.join(data_dir, "images", '100k', 'test')
 
-        self.names = [name[:-4] for name in list(filter(lambda x: x.endswith(".jpg"), os.listdir(self.img_dir)))]
+        self.filenames = [name[:-4] for name in list(filter(lambda x: x.endswith(".jpg"), os.listdir(self.img_dir)))]
         
         if flag != 'test':
-            self.label_data = json.load(open(self.json_dir, 'r', encoding='UTF-8'))
-            self.label_data = {x['name']: x for x in self.label_data}
-        
-            list_labels = []
-            for name in self.label_data.keys():
-                if 'labels' in self.label_data[name]:
-                    for element in self.label_data[name]['labels']:
-                        list_labels.append(element['category'])
-            self.label_list = list(set(list_labels))
-        
+            self.json_labels = json.load(open(self.json_dir, 'r', encoding='UTF-8'))
+            self.label_data = {x['name']: x for x in tqdm(self.json_labels, desc="Loading labels: ") }
+            
+            # Remove images without bounding boxes
+            for i, label in enumerate(self.json_labels):
+                if not 'labels' in self.json_labels[i]:
+                    self.label_data.pop(label['name'])
+
+            self.names = []
+            hash_names = set()
+            self.labels = []
+            for name in tqdm(self.label_data.keys(), desc="Preparing labels for YOLO: "):
+                boxes = np.array([])
+                for element in self.label_data[name]['labels']:
+                    hash_names.add(element['category'])
+                    bbox = np.array([list(hash_names).index(element['category']), element['box2d']['x1'], element['box2d']['y1'], element['box2d']['x2'], element['box2d']['y2']])
+                    boxes = np.vstack([boxes, bbox]) if boxes.size else bbox
+                self.labels.append(np.reshape(boxes,(-1,5)))
+            self.names = list(hash_names)
+
+            assert len(self.labels) == len(self.label_data), 'There are some images without labels: labels-->{}, images-->{}'.format(len(self.labels), len(self.filenames))
+
             self.n = len(self.names)
             self.indices = range(self.n)
 
@@ -78,18 +92,12 @@ class BDDDataset(Dataset):
         return img, target
 
     def __len__(self):
-        if len(self.names) == 0:
+        if len(self.label_data) == 0:
             raise Exception("\n{} is an empty dir, please download the dataset and the labels".format(self.data_dir))
-        return len(self.names)
+        return len(self.label_data)
 
     def num_classes(self):
         if self.flag != 'test':
-            return len(self.label_list)
+            return len(self.names)
         else:
             return 0
-
-    def labels(self):
-        if self.flag != 'test':
-            return self.label_list
-        else:
-            return []
