@@ -76,7 +76,7 @@ class Preprocessor():
 
 
 class Detector():
-  def __init__(self, HOUGH_GRADIENT=True, dp=2, minDist = 500, param1=220, param2=70, minRadius=0, maxRadiusRatio = 20):
+  def __init__(self, HOUGH_GRADIENT=True, dp=2.2, minDist = 500, param1=230, param2=80, minRadius=0, maxRadiusRatio = 20):
     self.method = cv.HOUGH_GRADIENT
     if not HOUGH_GRADIENT:
       self.method = cv.HOUGH_GRADIENT_ALT
@@ -158,7 +158,7 @@ def main():
     start_time = time.time()
     h = height//4
     w = width // 3
-    max_radius_ratio = 10
+    max_radius_ratio = 15
     dt = Detector(maxRadiusRatio=max_radius_ratio)
     pre = Preprocessor()
     while True:
