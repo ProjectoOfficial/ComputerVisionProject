@@ -6,34 +6,13 @@ import os
 import time
 import shutil
 
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__)) # This is your Project Root
-RESULTS_DIR = ROOT_DIR + '\\detected_circles'
-height = 1000
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__)) # This is the Project's Root
+RESULTS_DIR = ROOT_DIR + '\\detected_circles' #Directory in which we store the results (frames with detected circles)
+#frames' new dimensions after resizing (needed for computational needs)
+height = 1000 
 width = 750
 
 
-
-"""
-def check_rotation(path_video_file):
-    # this returns meta-data of the video file in form of a dictionary
-    meta_dict = ffmpeg.probe(path_video_file)
-
-    # from the dictionary, meta_dict['streams'][0]['tags']['rotate'] is the key
-    # we are looking for
-    rotateCode = None
-    if int(meta_dict['streams'][0]['tags']['rotate']) == 90:
-        rotateCode = cv.ROTATE_90_CLOCKWISE
-    elif int(meta_dict['streams'][0]['tags']['rotate']) == 180:
-        rotateCode = cv.ROTATE_180
-    elif int(meta_dict['streams'][0]['tags']['rotate']) == 270:
-        rotateCode = cv.ROTATE_90_COUNTERCLOCKWISE
-
-    return rotateCode
-
-def correct_rotation(frame, rotateCode):  
-    return cv.rotate(frame, rotateCode) 
-
-"""
 
 class Preprocessor():
   def __init__(self):
@@ -148,12 +127,6 @@ def main():
         print("Cannot open camera")
         exit()
     n_frames = 0
-     # open a pointer to the video file stream
-
-    # check if video requires rotation
-    #rotateCode = check_rotation(filename)
-
-        # now your logic can start from here
     n_detected = 0
     start_time = time.time()
     h = height//4
@@ -179,7 +152,6 @@ def main():
       gray = pre.prep(frame)
       circles = dt.detect(gray)
       #print(type(circles))
-      # Display the resulting frame
       #cv.imshow('frame', gray)
       n_detected = save_circles_from_video(frame, circles, n_detected)
       n_frames += 1
