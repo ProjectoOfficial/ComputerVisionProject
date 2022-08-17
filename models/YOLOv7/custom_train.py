@@ -48,8 +48,10 @@ from BDDDataset import BDDDataset
 logger = logging.getLogger(__name__)
 
 
-def train(data_dir, hyp, save_dir, epochs, batch_size, total_batch_size, weights, rank, evolve, device, tb_writer=None,
-            linear_lr = False, resume = False, multi_scale = False):
+def train(data_dir, cfg, hyp, save_dir, epochs, batch_size, total_batch_size, weights, rank, evolve, device, tb_writer=None, linear_lr = False, resume = False, 
+        multi_scale: bool = False, adam: bool = True, img_size: tuple = (640, 640), sync_bn: bool = False, noautoanchor: bool = False, local_rank: int = -1, 
+        label_smoothing: float = 0.0, image_weights: bool = False, quad: bool = False, world_size: int = 1):
+
     logger.info(colorstr('hyperparameters: ') + ', '.join(f'{k}={v}' for k, v in hyp.items()))
 
     # Directories
@@ -60,10 +62,12 @@ def train(data_dir, hyp, save_dir, epochs, batch_size, total_batch_size, weights
     results_file = save_dir / 'results.txt'
 
     # Save run settings
+    '''
     with open(save_dir / 'hyp.yaml', 'w') as f:
         yaml.dump(hyp, f, sort_keys=False)
     with open(save_dir / 'opt.yaml', 'w') as f:
         yaml.dump(vars(opt), f, sort_keys=False)
+    '''
 
     # Configure
     plots = not evolve  # create plots
@@ -72,12 +76,12 @@ def train(data_dir, hyp, save_dir, epochs, batch_size, total_batch_size, weights
 
     # TrainSet
     preprocess = Preprocessing()
-    trainset = BDDDataset(data_dir, 'train', preprocess.base_transform)
+    trainset = BDDDataset(data_dir, 'train', img_size)
     nc = trainset.n
     names = trainset.names
     
     # TestSet
-    testset = BDDDataset(data_dir, 'test')
+    testset = BDDDataset(data_dir, 'test', img_size)
 
     # Model
     pretrained = weights.endswith('.pt')
@@ -86,13 +90,13 @@ def train(data_dir, hyp, save_dir, epochs, batch_size, total_batch_size, weights
             attempt_download(weights)  # download if not found locally
         ckpt = torch.load(weights, map_location=device)  # load checkpoint
         model = Model(cfg or ckpt['model'].yaml, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
-        exclude = ['anchor'] if (cfg or hyp.get('anchors')) and not opt.resume else []  # exclude keys
+        exclude = ['anchor'] if (cfg or hyp.get('anchors')) and not resume else []  # exclude keys
         state_dict = ckpt['model'].float().state_dict()  # to FP32
         state_dict = intersect_dicts(state_dict, model.state_dict(), exclude=exclude)  # intersect
         model.load_state_dict(state_dict, strict=False)  # load
         logger.info('Transferred %g/%g items from %s' % (len(state_dict), len(model.state_dict()), weights))  # report
     else:
-        model = Model(opt.cfg, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
+        model = Model(cfg, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
 
     # Freeze
     freeze = []  # parameter names to freeze (full or partial)
@@ -173,7 +177,7 @@ def train(data_dir, hyp, save_dir, epochs, batch_size, total_batch_size, weights
             if hasattr(v.rbr_dense, 'vector'):   
                 pg0.append(v.rbr_dense.vector)
 
-    if opt.adam:
+    if adam:
         optimizer = optim.Adam(pg0, lr=hyp['lr0'], betas=(hyp['momentum'], 0.999))  # adjust beta1 to momentum
     else:
         optimizer = optim.SGD(pg0, lr=hyp['lr0'], momentum=hyp['momentum'], nesterov=True)
@@ -226,19 +230,19 @@ def train(data_dir, hyp, save_dir, epochs, batch_size, total_batch_size, weights
     # Image sizes
     gs = max(int(model.stride.max()), 32)  # grid size (max stride)
     nl = model.model[-1].nl  # number of detection layers (used for scaling hyp['obj'])
-    imgsz, imgsz_test = [check_img_size(x, gs) for x in opt.img_size]  # verify imgsz are gs-multiples
+    imgsz, imgsz_test = [check_img_size(x, gs) for x in img_size]  # verify imgsz are gs-multiples
 
     # DP mode
     if cuda and rank == -1 and torch.cuda.device_count() > 1:
         model = torch.nn.DataParallel(model)
 
     # SyncBatchNorm
-    if opt.sync_bn and cuda and rank != -1:
+    if sync_bn and cuda and rank != -1:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model).to(device)
         logger.info('Using SyncBatchNorm()')
 
     #Trainloader
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size)
+    trainloader = torch.utils.data.DataLoader(trainset, batch_size, collate_fn=BDDDataset.collate_fn)
 
     mlc = np.concatenate(trainset.labels, 0)[:, 0].max()  # max label class
     nb = len(trainloader)  # number of batches
@@ -248,7 +252,7 @@ def train(data_dir, hyp, save_dir, epochs, batch_size, total_batch_size, weights
     if rank in [-1, 0]:
         testloader = torch.utils.data.DataLoader(testset, batch_size)
 
-        if not opt.resume:
+        if not resume:
             labels = np.concatenate(trainset.labels, 0)
             c = torch.tensor(labels[:, 0])  # classes
             # cf = torch.bincount(c.long(), minlength=nc) + 1.  # frequency
@@ -259,13 +263,13 @@ def train(data_dir, hyp, save_dir, epochs, batch_size, total_batch_size, weights
                     tb_writer.add_histogram('classes', c, 0)
 
             # Anchors
-            if not opt.noautoanchor:
+            if not noautoanchor:
                 check_anchors(trainset, model=model, thr=hyp['anchor_t'], imgsz=imgsz)
             model.half().float()  # pre-reduce anchor precision
 
     # DDP mode
     if cuda and rank != -1:
-        model = DDP(model, device_ids=[opt.local_rank], output_device=opt.local_rank,
+        model = DDP(model, device_ids=[local_rank], output_device=local_rank,
                     # nn.MultiheadAttention incompatibility with DDP https://github.com/pytorch/pytorch/issues/26698
                     find_unused_parameters=any(isinstance(layer, nn.MultiheadAttention) for layer in model.modules()))
 
@@ -273,11 +277,11 @@ def train(data_dir, hyp, save_dir, epochs, batch_size, total_batch_size, weights
     hyp['box'] *= 3. / nl  # scale to layers
     hyp['cls'] *= nc / 80. * 3. / nl  # scale to classes and layers
     hyp['obj'] *= (imgsz / 640) ** 2 * 3. / nl  # scale to image size and layers
-    hyp['label_smoothing'] = opt.label_smoothing
+    hyp['label_smoothing'] = label_smoothing
     model.nc = nc  # attach number of classes to model
     model.hyp = hyp  # attach hyperparameters to model
     model.gr = 1.0  # iou loss ratio (obj_loss = 1.0 or iou)
-    model.class_weights = labels_to_class_weights(names, nc).to(device) * nc  # attach class weights
+    model.class_weights = labels_to_class_weights(trainset.labels, nc).to(device) * nc  # attach class weights
     model.names = names
 
     # Start training
@@ -299,7 +303,7 @@ def train(data_dir, hyp, save_dir, epochs, batch_size, total_batch_size, weights
         model.train()
 
         # Update image weights (optional)
-        if opt.image_weights:
+        if image_weights:
             # Generate indices
             if rank in [-1, 0]:
                 cw = model.class_weights.cpu().numpy() * (1 - maps) ** 2 / nc  # class weights
@@ -352,8 +356,8 @@ def train(data_dir, hyp, save_dir, epochs, batch_size, total_batch_size, weights
                 pred = model(imgs)  # forward
                 loss, loss_items = compute_loss_ota(pred, targets.to(device), imgs)  # loss scaled by batch_size
                 if rank != -1:
-                    loss *= opt.world_size  # gradient averaged between devices in DDP mode
-                if opt.quad:
+                    loss *= world_size  # gradient averaged between devices in DDP mode
+                if quad:
                     loss *= 4.
 
             # Backward
@@ -492,6 +496,7 @@ def train(data_dir, hyp, save_dir, epochs, batch_size, total_batch_size, weights
 
 if __name__ == '__main__':
     
+    '''
     parser = argparse.ArgumentParser()
     parser.add_argument('--weights', type=str, default=current+r'\yolov7.pt', help='initial weights path')
     parser.add_argument('--cfg', type=str, default=current+r'\cfg\training\yolov7.yaml', help='model.yaml path')
@@ -528,14 +533,15 @@ if __name__ == '__main__':
     parser.add_argument('--save_period', type=int, default=-1, help='Log model after every "save_period" epoch')
     parser.add_argument('--artifact_alias', type=str, default="latest", help='version of dataset artifact to be used')
     opt = parser.parse_args()
-    
+    '''
+
     DATA_DIR = current+r'\data\bdd100k'
     WEIGHTS = current+r'\yolov7.pt'
     CFG = current+r'\cfg\training\yolov7.yaml'
     HYP = current+r'\data\hyp.scratch.p5.yaml'
     NAME = 'exp'
     RESULTS_DIR = current+r'\runs\train'
-    BATCH_SIZE = 2
+    BATCH_SIZE = 1
     DEVICE = 'cuda'
     LOCAL_RANK = -1
     EVOLVE = False
@@ -543,6 +549,15 @@ if __name__ == '__main__':
     NO_SAVE = False
     BUCKET = False
     LINEAR_LR = False
+    IMG_SIZE = (720, 1280)
+    RESUME = False
+    MULTI_SCALE = False
+    ADAM = True
+    SYNC_BN = False
+    NOAUTOANCHOR = False
+    LABEL_SMOOTHING = 0.0
+    IMAGE_WEIGHTS = False
+    QUAD = False
     EPOCHS = 1
 
     settings = {'WEIGHTS': WEIGHTS, 'CFG': CFG, 'HYP': HYP, 'NAME': NAME, 'RESULT_DIR': RESULTS_DIR, 'BATCH_SIZE': BATCH_SIZE,
@@ -591,7 +606,8 @@ if __name__ == '__main__':
             prefix = colorstr('tensorboard: ')
             logger.info(f"{prefix}Start with 'tensorboard --logdir {RESULTS_DIR}', view at http://localhost:6006/")
             tb_writer = SummaryWriter(save_dir)  # Tensorboard
-        train(DATA_DIR, hyp, Path(save_dir), EPOCHS, BATCH_SIZE, total_batch_size, weights, global_rank, EVOLVE, device, tb_writer, LINEAR_LR)
+        train(DATA_DIR, CFG, hyp, Path(save_dir), EPOCHS, BATCH_SIZE, total_batch_size, weights, global_rank, EVOLVE, device, tb_writer, LINEAR_LR, RESUME,
+        MULTI_SCALE, ADAM, IMG_SIZE, SYNC_BN, NOAUTOANCHOR, LOCAL_RANK, LABEL_SMOOTHING, IMAGE_WEIGHTS, QUAD, world_size)
 
     # Evolve hyperparameters (optional)
     else:
@@ -672,7 +688,8 @@ if __name__ == '__main__':
                 hyp[k] = round(hyp[k], 5)  # significant digits
 
             # Train mutation
-            results = train(DATA_DIR, hyp.copy(), Path(save_dir), EPOCHS, BATCH_SIZE, total_batch_size, weights, global_rank, EVOLVE, device, None, LINEAR_LR)
+            results = train(DATA_DIR, CFG, hyp.copy(), Path(save_dir), EPOCHS, BATCH_SIZE, total_batch_size, weights, global_rank, EVOLVE, device, None, LINEAR_LR, RESUME,
+                        MULTI_SCALE, ADAM, IMG_SIZE, SYNC_BN, NOAUTOANCHOR, LOCAL_RANK, LABEL_SMOOTHING, IMAGE_WEIGHTS, QUAD, world_size)
 
             # Write mutation results
             print_mutation(hyp.copy(), results, yaml_file, BUCKET)

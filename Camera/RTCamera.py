@@ -17,7 +17,7 @@ class RTCamera(object):
         This class is used to manage the camera
     '''
 
-    def __init__(self, src:int=0, fps:float=60, resolution:tuple=(1920, 1080), cuda : bool = False, auto_exposure : bool = False):
+    def __init__(self, src:int=0, fps:float=60, resolution:tuple=(1920, 1080), cuda : bool = False, auto_exposure : bool = False, rotation: int = None):
 
         self.src            = src
         self.cap            = cv2.VideoCapture(self.src)
@@ -26,6 +26,7 @@ class RTCamera(object):
 
         self.cuda           = cuda
         self.auto_exposure  = auto_exposure
+        self.rotation = rotation
 
         self.resolution     = resolution
         self.FPS            = fps
@@ -116,6 +117,9 @@ class RTCamera(object):
         while True:
             if self.cap.isOpened():
                 (ret, frame) = self.cap.read()
+                if self.rotation is not None:
+                    frame = cv2.rotate(frame, self.rotation)
+
                 if self.cuda:
                     self.frame.upload(frame)
                 else:

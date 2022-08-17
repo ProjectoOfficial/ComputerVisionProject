@@ -42,6 +42,7 @@ INSTRUCTION:
 CAMERA_DEVICE = 0
 PRESSED_KEY = ''
 CALIBRATE = False
+RECORDING = False
 BLUR = False
 TRANSFORMS = False
 CHESSBOARD = False
@@ -67,7 +68,7 @@ logging.getLogger("imported_module").setLevel(logging.ERROR)
 listener = Listener(on_press=on_press)
 
 if __name__ == "__main__":
-    camera = RTCamera(CAMERA_DEVICE, fps=60, resolution=(1920, 1080), cuda=True, auto_exposure=False)
+    camera = RTCamera(CAMERA_DEVICE, fps=30, resolution=(720, 720), cuda=True, auto_exposure=False, rotation=cv2.ROTATE_90_COUNTERCLOCKWISE)
     camera.start()
 
     start_fps = time.time()
@@ -99,15 +100,15 @@ if __name__ == "__main__":
                 print("recording started...")
                 camera.register("{}.mp4".format(FILENAME))
 
-            if PRESSED_KEY == 'g':
+            if PRESSED_KEY == 'g' and not RECORDING:
                 gain = int(input("please insert the gain: "))
                 camera.set_gain(gain)
 
-            if PRESSED_KEY == 'e':
+            if PRESSED_KEY == 'e' and not RECORDING:
                 exp = int(input("please insert the exposure: "))
                 camera.set_exposure(exp)
 
-            if PRESSED_KEY == 's':                  
+            if PRESSED_KEY == 's' and not RECORDING:                  
                 now = datetime.now()
                 if not os.path.isdir(current + "/Calibration"):
                     os.makedirs(current + "/Calibration")
@@ -116,7 +117,7 @@ if __name__ == "__main__":
 
                 print("saved frame {} ".format(path))
 
-            if PRESSED_KEY == 'c':
+            if PRESSED_KEY == 'c' and not RECORDING:
                 print("Calibration in process, please wait...\n")
                 cv2.destroyAllWindows()
                 geometry = Geometry(r"{}/Camera/Calibration/".format(os.getcwd()))
@@ -130,11 +131,11 @@ if __name__ == "__main__":
                 BLUR = not BLUR
                 print("blur: {}".format(BLUR))
 
-            if PRESSED_KEY == 't':
+            if PRESSED_KEY == 't' and not RECORDING:
                 TRANSFORMS = not TRANSFORMS
                 print("transform: {}".format(TRANSFORMS))
 
-            if PRESSED_KEY == 'f':
+            if PRESSED_KEY == 'f' and not RECORDING:
                 CHESSBOARD = not CHESSBOARD
                 print("Chessboard: {}".format(CHESSBOARD))
                 cv2.destroyAllWindows()

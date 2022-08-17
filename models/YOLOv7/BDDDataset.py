@@ -8,6 +8,15 @@ from typing import List, Dict, Set, Union
 from torchvision import transforms
 from tqdm import tqdm
 import json
+import collections
+
+import sys
+import cv2
+current = os.path.dirname(os.path.realpath(__file__))  
+parent = os.path.dirname(current)
+sys.path.append(str(Path(parent).parent))
+
+from Preprocessing import Preprocessing
 
 def collate_fn(batch):
     """
@@ -18,12 +27,11 @@ def collate_fn(batch):
     return tuple(batch)
 
 class BDDDataset(Dataset):
-    def __init__(self, data_dir: str, flag: str, base_trans: transforms.Compose = None, train_trans: transforms.Compose = None):
+    def __init__(self, data_dir: str, flag: str, shape: tuple=(360,480)):
 
         self.data_dir = data_dir
         self.flag = flag
-        self.base_trans = base_trans
-        self.train_trans = train_trans
+        self.base_shape = shape
 
         if flag == 'train':
             self.img_dir = os.path.join(data_dir, "images", '100k', 'train')
@@ -57,15 +65,15 @@ class BDDDataset(Dataset):
                 files = list(cache.keys())
 
                 self.filenames = files
-                self.shapes = np.array([shapes], dtype=np.float64)
+                self.shapes = np.array(shapes, dtype=np.float64)
                 self.names = list(hash_names)
                 self.labels = labels
 
             else:
-                (files, shapes, hash_names, labels) = self.load_labels(cache_path, self.base_trans)
+                (files, shapes, hash_names, labels) = self.load_labels(cache_path)
 
                 self.filenames = files
-                self.shapes = np.array([shapes], dtype=np.float64)
+                self.shapes = np.array(shapes, dtype=np.float64)
                 self.names = list(hash_names)
                 self.labels = labels
 
@@ -75,35 +83,27 @@ class BDDDataset(Dataset):
             self.indices = range(self.n)
 
     def __getitem__(self, index):
-        name = self.names[index]
-        path_img = os.path.join(self.img_dir, name + ".jpg")
+        name = self.filenames[index]
+        path_img = os.path.join(self.img_dir, name)
+        shapes = None
 
         # load images
         img = Image.open(path_img).convert("RGB")
-
+        print(img.size)
         # load boxes and label
-        points = self.label_data[name + '.jpg']['labels']
-        boxes_list = list()
-        labels_list = list()
+        labels = self.labels[index]
 
-        for point in points:
-            if 'box2d' in point.keys():
-                box = point['box2d']
-                boxes_list.append([box['x1'], box['y1'], box['x2'], box['y2']])
-                label = point['category']
-                labels_list.append(self.label_list.index(label))
+        # base transform
+        img, labels = Preprocessing.Transform_base(img, labels, self.base_shape)
 
-        boxes = torch.tensor(boxes_list, dtype=torch.float)
-        labels = torch.tensor(labels_list, dtype=torch.long)
+        return img, labels, self.data_dir + r'\\' + self.filenames[index], shapes
 
-        target = {}
-        target["boxes"] = boxes
-        target["labels"] = labels
-
-        if self.transforms is not None:
-            img, target = self.transforms(img), target
-
-        return img, target
+    @staticmethod
+    def collate_fn(batch):
+        img, label, path, shapes = zip(*batch)  # transposed
+        for i, l in enumerate(label):
+            l[:, 0] = i  # add target image index for build_targets()
+        return torch.stack(img, 0), torch.cat(label, 0), path, shapes
 
     def __len__(self):
         if len(self.filenames) == 0:
@@ -116,7 +116,7 @@ class BDDDataset(Dataset):
         else:
             return 0
 
-    def load_labels(self, cache_path: Path, trans: transforms) -> Union[List, List, Set, List]:
+    def load_labels(self, cache_path: Path) -> Union[List, List, Set, List]:
         '''
         Loads labels data with automatic caching
         '''
@@ -127,11 +127,9 @@ class BDDDataset(Dataset):
         cache['version'] = 0.1
 
         shapes = list()
-        hash_names = set()
+        hash_names = ('truck', 'other person', 'motorcycle', 'bus', 'other vehicle', 'rider', 'traffic sign', 'pedestrian', 'bicycle', 'traffic light', 'train', 'car', 'trailer')
         labels = list()
         files = list()
-
-        to_tensor = transforms.PILToTensor()
 
         for name in tqdm(self.label_data.keys(), desc="Preparing labels for YOLO: "):
             boxes = np.array([])
@@ -146,24 +144,45 @@ class BDDDataset(Dataset):
 
             if 'labels' in self.label_data[name]:
                 for element in self.label_data[name]['labels']:
-                    # filling categories list
-                    hash_names.add(element['category'])
-
                     # retrieving bounding box labels
                     bbox = np.array([list(hash_names).index(element['category']), element['box2d']['x1'], element['box2d']['y1'], element['box2d']['x2'], element['box2d']['y2']])
                     boxes = np.vstack([boxes, bbox]) if boxes.size else bbox
 
             # retrieving image shape
-            img = trans(to_tensor(img))
-            shapes.append(img.shape[1:])
+            shapes.append(self.base_shape)
 
             labels.append(np.reshape(boxes,(-1,5)))
 
             files.append(name)
 
             # cache[filename] = [labels, image shape]
-            cache[name] = [np.reshape(boxes,(-1,5)), img.shape[1:]]
+            cache[name] = [np.reshape(boxes,(-1,5)), self.base_shape]
         cache['hash_names'] = hash_names
 
         torch.save(cache, cache_path)
         return files, shapes, hash_names, labels
+
+
+if __name__ == "__main__":
+    DATA_DIR = current+r'\data\bdd100k'
+    preprocess = Preprocessing()
+    trainset = BDDDataset(data_dir=DATA_DIR, flag='train', shape=(720, 1280))
+
+    it = iter(trainset)
+    img, boxes, file, shape = next(it)
+    img, boxes, file, shape = next(it)
+    img, boxes, file, shape = next(it)
+    img, boxes, file, shape = next(it)
+    img, boxes, file, shape = next(it)
+    img = Preprocessing.to_np_frame(img.cpu().detach().numpy())
+    
+    for box in boxes.cpu().detach().numpy():
+        (cat, x, y, w, h) = int(box[0]), int(box[1]), int(box[2]), int(box[3]), int(box[4]),
+
+        print("{} {} {} {}".format(x, y, w, h))
+        cv2.rectangle(img, (x, y), (w, h), (255,0,0), 2)
+        cv2.putText(img,"{}".format(trainset.names[cat]), (x + 5, y + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (0,0,255), 2)
+
+    cv2.imshow("frame", img)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()

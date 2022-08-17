@@ -17,7 +17,6 @@ class Preprocessing():
     def __init__(self):
         global base_transform
         base_transform = transforms.Compose([
-            transforms.ToPILImage(),
             transforms.Resize(size=(360, 480)),             # 360p
             transforms.PILToTensor()
             ])        
@@ -32,16 +31,26 @@ class Preprocessing():
         return np.swapaxes(np.swapaxes(np.uint8(frame), 0, 2), 0, 1)
 
     @staticmethod
-    def Transform_base(frame: np.ndarray):
+    def Transform_base(frame: np.ndarray, boxes: np.ndarray, shape: tuple, np_tensor: bool=False):
         '''
         Transform_base contains image transformation used both on camera and dataset images. It takes images coming
         from different sources and and modifies them so that the output images all have the same structure
-        '''
+        ''' 
+        old_dims = torch.FloatTensor([1, frame.width, frame.height, frame.width, frame.height]).unsqueeze(0)
+        new_boxes = None
 
-        image_transformed = base_transform(frame)
-        frame = Preprocessing.to_np_frame(image_transformed.numpy())
+        frame = transforms.Resize(size=shape)(frame)
+        
+        if boxes is not None:
+            new_dims = torch.FloatTensor([1, shape[1], shape[0], shape[1], shape[0]]).unsqueeze(0)
+            new_boxes = (boxes / old_dims) * new_dims
 
-        return frame
+        frame = transforms.PILToTensor()(frame)
+
+        if np_tensor:
+            frame = Preprocessing.to_np_frame(frame.cpu().detach().numpy())
+
+        return frame, new_boxes
 
     @staticmethod
     def Transform_train(frame: np.ndarray):
