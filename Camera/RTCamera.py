@@ -26,9 +26,12 @@ class RTCamera(object):
 
         self.cuda           = cuda
         self.auto_exposure  = auto_exposure
-        self.rotation = rotation
+        self.rotation       = rotation
 
         self.resolution     = resolution
+        self.resolution_used = resolution
+        self.offset         = 0
+
         self.FPS            = fps
         self.FPS_MS         = int(1/self.FPS * 1000)
 
@@ -72,6 +75,11 @@ class RTCamera(object):
             if self.cuda: # if cuda us really available, then we can use it
                 self.frame = cv2.cuda_GpuMat() 
 
+                
+        self.offset = (max(self.resolution) - min(self.resolution)) // 2
+        if self.rotation is not None:
+            self.resolution_used = (self.resolution[0] - 2 * self.offset, self.resolution[1]) # cropping with center as reference
+
         if self.auto_exposure:       
             self.__adjust_exposure()
 
@@ -83,9 +91,7 @@ class RTCamera(object):
         '''
         it stops the camera thread and releases the camera. If recording was started, it saves the file and close it
         '''
-        if self.record:
-            self.output.release()
-            self.record = False
+        self.stop_recording()
 
         self.thread_alive = False
         self.thread.join()
@@ -119,6 +125,7 @@ class RTCamera(object):
                 (ret, frame) = self.cap.read()
                 if self.rotation is not None:
                     frame = cv2.rotate(frame, self.rotation)
+                    frame = frame[self.offset:-self.offset,:,:]
 
                 if self.cuda:
                     self.frame.upload(frame)
@@ -165,8 +172,13 @@ class RTCamera(object):
         '''
         this method starts the video recording 
         '''
-        self.output = cv2.VideoWriter(filename, self.fourcc, self.FPS, self.resolution)
+        self.output = cv2.VideoWriter(filename, self.fourcc, self.FPS, self.resolution_used)
         self.record = True
+
+    def stop_recording(self):
+        if self.record:
+            self.output.release()
+            self.record = False
 
     def save_frame(self, path:str):
         '''

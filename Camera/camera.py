@@ -68,7 +68,7 @@ logging.getLogger("imported_module").setLevel(logging.ERROR)
 listener = Listener(on_press=on_press)
 
 if __name__ == "__main__":
-    camera = RTCamera(CAMERA_DEVICE, fps=30, resolution=(720, 720), cuda=True, auto_exposure=False, rotation=cv2.ROTATE_90_COUNTERCLOCKWISE)
+    camera = RTCamera(CAMERA_DEVICE, fps=30, resolution=(1280, 720), cuda=True, auto_exposure=False, rotation=cv2.ROTATE_90_COUNTERCLOCKWISE)
     camera.start()
 
     start_fps = time.time()
@@ -90,25 +90,33 @@ if __name__ == "__main__":
                 fps = camera.get_fps()
                 start_fps = time.time()
 
-            if PRESSED_KEY == 'q':
+            if PRESSED_KEY == 'q': # QUIT
                 listener.stop()
                 listener.join()
                 print("closing!")
                 break
 
-            if PRESSED_KEY == 'r':
-                print("recording started...")
-                camera.register("{}.mp4".format(FILENAME))
+            if PRESSED_KEY == 'r': # REGISTER/STOP RECORDING
+                if not RECORDING:
+                    print("recording started...")
+                    now = datetime.now()
+                    dt_string = now.strftime("%d_%m_%Y__%H_%M_%S")
+                    camera.register("{}__{}.mp4".format(FILENAME, dt_string))
+                    RECORDING = True
+                else:
+                    camera.stop_recording()
+                    print("recording stopped!")
+                    RECORDING = False
 
-            if PRESSED_KEY == 'g' and not RECORDING:
+            if PRESSED_KEY == 'g' and not RECORDING: # CHANGE GAIN
                 gain = int(input("please insert the gain: "))
                 camera.set_gain(gain)
 
-            if PRESSED_KEY == 'e' and not RECORDING:
+            if PRESSED_KEY == 'e' and not RECORDING: # CHANGE EXPOSURE
                 exp = int(input("please insert the exposure: "))
                 camera.set_exposure(exp)
 
-            if PRESSED_KEY == 's' and not RECORDING:                  
+            if PRESSED_KEY == 's' and not RECORDING: # SAVE CURRENT FRAME
                 now = datetime.now()
                 if not os.path.isdir(current + "/Calibration"):
                     os.makedirs(current + "/Calibration")
@@ -117,25 +125,25 @@ if __name__ == "__main__":
 
                 print("saved frame {} ".format(path))
 
-            if PRESSED_KEY == 'c' and not RECORDING:
+            if PRESSED_KEY == 'c' and not RECORDING: # CALIBRATE CAMERA
                 print("Calibration in process, please wait...\n")
                 cv2.destroyAllWindows()
                 geometry = Geometry(r"{}/Camera/Calibration/".format(os.getcwd()))
                 calibrated, mtx, dist, rvecs, tvecs = geometry.get_calibration()
                 camera.calibrate(calibrated, mtx, dist, rvecs, tvecs)
 
-            if PRESSED_KEY == 'i':
+            if PRESSED_KEY == 'i': # SHOW MEAN VALUE OF CURRENT FRAME
                 print("Frame AVG value: {}".format(frame.mean(axis=(0, 1, 2))))
 
-            if PRESSED_KEY == 'b':
+            if PRESSED_KEY == 'b': # BLUR FRAME
                 BLUR = not BLUR
                 print("blur: {}".format(BLUR))
 
-            if PRESSED_KEY == 't' and not RECORDING:
+            if PRESSED_KEY == 't' and not RECORDING: # APPLY TRANSFORMS TO FRAME
                 TRANSFORMS = not TRANSFORMS
                 print("transform: {}".format(TRANSFORMS))
 
-            if PRESSED_KEY == 'f' and not RECORDING:
+            if PRESSED_KEY == 'f' and not RECORDING: # SHOW CHESSBOARD
                 CHESSBOARD = not CHESSBOARD
                 print("Chessboard: {}".format(CHESSBOARD))
                 cv2.destroyAllWindows()
@@ -155,9 +163,6 @@ if __name__ == "__main__":
             if PRESSED_KEY != '':
                 PRESSED_KEY = ''
 
-                
-            # edges = cv2.Canny(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), 220, 230)
-
             # Object detector (using face detector while waiting for Object detection to be ready)
             face_detector = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
             bounding_boxes = face_detector.detectMultiScale(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), 1.3, 5)
@@ -168,15 +173,9 @@ if __name__ == "__main__":
                     break
                 cv2.rectangle(frame, (x, y), (x + w, y + h), GREEN, 2)
                 cv2.putText(frame,"Distance: {:.2f}".format(distances[idx]), (x + 5, y + 20), fonts, 0.6, GREEN, 2)
-                
-
-            frame = frame.copy()
-            #rot = RTCamera.rotate_image(frame, 90)
 
             cv2.putText(frame, str(fps) + " fps", (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 255, 0), 2, cv2.LINE_AA)
-            #H_stack = np.hstack((frame, cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)))
             cv2.imshow("frame", frame)
-            #cv2.imshow("rot", rot)
     camera.stop()
     cv2.destroyAllWindows()
     print("closed")
