@@ -76,12 +76,12 @@ def train(data_dir, cfg, hyp, save_dir, epochs, batch_size, total_batch_size, we
 
     # TrainSet
     preprocess = Preprocessing()
-    trainset = BDDDataset(data_dir, 'train', img_size)
+    trainset = BDDDataset(data_dir, 'train', hyp, img_size)
     nc = trainset.n
     names = trainset.names
     
     # TestSet
-    testset = BDDDataset(data_dir, 'test', img_size)
+    testset = BDDDataset(data_dir, 'test', hyp, img_size)
 
     # Model
     pretrained = weights.endswith('.pt')
