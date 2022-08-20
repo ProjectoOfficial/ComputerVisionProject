@@ -11,7 +11,7 @@ import json
 import yaml
 import random
 from utils.datasets import load_mosaic, load_mosaic9, load_image, letterbox, segments2boxes, exif_size
-from utils.general import check_file, xyxy2xyxyn, xyxy2xywh, xywhn2xyxy
+from utils.general import check_file, xyxy2xyxyn, xyxy2xywh, xywhn2xyxy, xywh2xyxy, xyxy2xywhn
 
 import sys
 import cv2
@@ -112,6 +112,8 @@ class BDDDataset(Dataset):
         hyp = self.hyp
         mosaic = self.mosaic and random.random() < hyp['mosaic']
 
+        img = None
+
         if mosaic:
             # Load mosaic
             if random.random() < 0.8:
@@ -140,13 +142,11 @@ class BDDDataset(Dataset):
 
             labels = self.labels[index].copy()
             if labels.size:  # normalized xywh to pixel xyxy format
-                labels[:, 1:] = xywhn2xyxy(labels[:, 1:], ratio[0] * w, ratio[1] * h, padw=pad[0], padh=pad[1])
+                labels[:, 1:] = xywhn2xyxy(labels[:, 1:], w=ratio[0] * w, h=ratio[1] * h, padw=pad[0], padh=pad[1])
 
         nL = len(labels)  # number of labels
         if nL:
-            labels[:, 1:5] = xyxy2xywh(labels[:, 1:5])  # convert xyxy to xywh
-            labels[:, [2, 4]] /= img.shape[0]  # normalized height 0-1
-            labels[:, [1, 3]] /= img.shape[1]  # normalized width 0-1
+            labels[:, 1:5] = xyxy2xywhn(labels[:, 1:5], w=img.shape[1], h=img.shape[0])  # convert xyxy to xywh
         
         labels_out = torch.zeros((nL, 6))
         if nL:
@@ -216,12 +216,11 @@ class BDDDataset(Dataset):
             
             l = np.reshape(l, (-1, 5)) # useful when there's only one label
 
-            # saving boxes in xywh format with normalization
+            # saving boxes in xyxy format with normalization
             l[:, 1:5] = xyxy2xyxyn(l[:, 1:5], h=min(shape), w=max(shape))
-            l[:, 1:5] = xyxy2xywh(l[:, 1:5])
 
             classes = np.array([x[0] for x in l], dtype=np.float32)
-            segments = [np.array(x[1:], dtype=np.float32).reshape(-1, 2) for x in l] # (cls, xy1...)
+            segments = [np.array(x[1:], dtype=np.float32).reshape(-1, 2) for x in l] # (cls, x1y1x2y2...)
             l = np.concatenate((classes.reshape(-1, 1), segments2boxes(segments)), 1)  # (cls, xywh)
             l = np.array(l, dtype=np.float32)
             
@@ -259,7 +258,7 @@ if __name__ == "__main__":
     
     for label in labels.cpu().detach().numpy():
         cat = trainset.names[int(label[1])]
-        label[2:] = xywhn2xyxy(label[2:].reshape((-1, 4)), w=img.shape[0], h=img.shape[1])
+        label[2:] = xywhn2xyxy(label[2:].reshape((-1, 4)), w=max(img.shape[:2]), h=min(img.shape[:2]))
         x, y, x2, y2 = label[2:].astype('uint32')
 
         print("{} {} {} {}".format(x, y, x2, y2))

@@ -298,6 +298,15 @@ def xyxy2xyxyn(x, w=640, h=640):
     y[:, 3] = x[:, 3] / h # bottom right y
     return y
 
+def xyxy2xywhn(x, w=640, h=640):
+    # Convert nx4 boxes from [x1, y1, x2, y2] to [x, y, w, h] where xy1=top-left, xy2=bottom-right
+    y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
+    y[:, 0] = ((x[:, 0] + x[:, 2]) / 2) / w # x center
+    y[:, 1] = ((x[:, 1] + x[:, 3]) / 2) / h # y center
+    y[:, 2] = (x[:, 2] - x[:, 0]) / w # width
+    y[:, 3] = (x[:, 3] - x[:, 1]) / h # height
+    return y
+
 
 def segment2box(segment, width=640, height=640):
     # Convert 1 segment label to 1 box label, applying inside-image constraint, i.e. (xy1, xy2, ...) to (xyxy)
