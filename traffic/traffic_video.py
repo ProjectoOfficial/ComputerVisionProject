@@ -1,19 +1,46 @@
+from audioop import cross
+from genericpath import isdir, isfile
 import numpy as np
 import cv2 as cv
+
 
 from types import NoneType
 import os
 import time
 import shutil
 
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__)) # This is the Project's Root
-RESULTS_DIR = ROOT_DIR + '\\detected_circles' #Directory in which we store the results (frames with detected circles)
-#frames' new dimensions after resizing (needed for computational needs)
-height = 1000 
-width = 750
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__)) # This is your Project Root
+RESULTS_DIR = ROOT_DIR + '\\detected_circles'
+SIGNS_DIR = ROOT_DIR + '\\signs'
+TEMPLATES_DIR = ROOT_DIR + '\\templates_solo_bordo'
 
+"""
+def check_rotation(path_video_file):
+  # this returns meta-data of the video file in form of a dictionary
+  meta_dict = ffmpeg.probe(path_video_file)  
+  # from the dictionary, meta_dict['streams'][0]['tags']['rotate'] is the key
+  # we are looking for
+  rotateCode = None
+  if int(meta_dict['streams'][0]['tags']['rotate']) == 90:
+      rotateCode = cv.ROTATE_90_CLOCKWISE
+  elif int(meta_dict['streams'][0]['tags']['rotate']) == 180:
+      rotateCode = cv.ROTATE_180
+  elif int(meta_dict['streams'][0]['tags']['rotate']) == 270:
+      rotateCode = cv.ROTATE_90_COUNTERCLOCKWISE  
+  return rotateCode
 
+def correct_rotation(frame, rotateCode):  
+  return cv.rotate(frame, rotateCode) 
 
+"""
+
+"""
+Class to perform preprocessing on the input frames, we have:
+1) Gaussian Kernel sliding on the image in order to smooth the noise
+2) Conversion from BGR to HSV colorspace, in order to better detect the "redness" of the traffic signs' border
+3) Shutting down (to black) all the pixels that aren't red enough
+4) Conversion from HSV to Grayscale
+"""
 class Preprocessor():
   def __init__(self):
     pass
@@ -21,41 +48,17 @@ class Preprocessor():
     #cv.imshow('Resized Image',img)
     img2 = cv.GaussianBlur(img, (3, 3), 0)
     img2 = cv.cvtColor(img2, cv.COLOR_BGR2HSV)
-    temp = np.logical_and(img2[:, :, 0] > 10, img2[:, :, 0] < 170)
-    #temp = np.logical_and(img2 > 10, img2 < 170)
-    #print(temp.sum(), img2[temp].shape, img2.shape, f"{temp.sum()/7500.0}% of all pixels will be cast to black.")
-    
-    num = 0
-    """
-    for i in range(img2.shape[0]):
-        for j in range(img2.shape[1]):
-            if 10 < img2[i, j, 0] < 170:
-                img2[i, j, 2] = 0
-                num += 1
-    
-    """
-    
-    
-
-    
+    temp = np.logical_and(img2[:, :, 0] > 11, img2[:, :, 0] < 169)  #colors not red
     img2[temp, 2] = 0
     h, w, _ = img2.shape
-    #img2[0:h//3, 0:w, 2] = 0
-    #img2[h//3*2+1:, 0:w, 2] = 0
-    
-    #img2 = cv.cvtColor(img2, cv.COLOR_HSV2BGR)
-    #cv.imshow('Resized, HSV-space thresholded, converted back to BGR image:', img2)
     h, w, _ = img2.shape
-    #gray_img = cv.cvtColor(img2, cv.COLOR_BGR2GRAY)
     gray_img = np.reshape(img2[:, :, 2], (h, w)) #from HSV to GRAYSCALE
-    #cv.imshow('Gray-scaled converted image:', gray_img)
-    #cv.imwrite(ROOT_DIR + '\\gray-scaled_preprocessed.jpg', gray_img)
     return gray_img
-
-
-
+"""
+Detector class, in which we perform the Canny Edge Detection and the Circles detection via the Hough Transform
+"""
 class Detector():
-  def __init__(self, HOUGH_GRADIENT=True, dp=2.2, minDist = 500, param1=230, param2=80, minRadius=0, maxRadiusRatio = 20):
+  def __init__(self, HOUGH_GRADIENT=True, dp=2.2, minDist = 500, param1=230, param2=85, minRadiusRatio=100, maxRadiusRatio = 20):
     self.method = cv.HOUGH_GRADIENT
     if not HOUGH_GRADIENT:
       self.method = cv.HOUGH_GRADIENT_ALT
@@ -63,7 +66,7 @@ class Detector():
     self.minDist = minDist
     self.param1 = param1
     self.param2 = param2
-    self.minRadius = minRadius
+    self.minRadiusRatio = minRadiusRatio
     self.maxRadiusRatio = maxRadiusRatio
   #single-channel image
   def detect(self, gray_img: np.ndarray, print_canny : bool= False):
@@ -71,26 +74,253 @@ class Detector():
       cv.imwrite(ROOT_DIR + '\\canny_edges.jpg', cv.Canny(gray_img, self.param1, self.param1//2))
     minimum = gray_img.shape[0] if gray_img.shape[0] < gray_img.shape[1] else gray_img.shape[1]
     maxR = minimum // self.maxRadiusRatio
-    #print(f"Maximum Radius: {maxR}")
-    circles = cv.HoughCircles(image=gray_img, method=self.method, dp=self.dp, minDist=self.minDist, param1=self.param1, param2=self.param2, minRadius=self.minRadius, maxRadius=maxR)
+    minR = minimum // self.minRadiusRatio
+    circles = cv.HoughCircles(image=gray_img, method=self.method, dp=self.dp, minDist=self.minDist, param1=self.param1, param2=self.param2, minRadius=minR, maxRadius=maxR)
     return circles
-    #return cv.HoughCircles(image=gray_img, method = cv.HOUGH_GRADIENT, dp=1.5, minDist=1,param1=220)
 
-def print_circles(img: np.ndarray, circles:np.ndarray):
-  if isinstance(circles, NoneType):
-      print(f"Non sono stati trovati cerchi!")
-  else:
+
+"""
+Matcher class, in which 
+"""
+class Matcher():
+  def __init__(self, sift = False, path = ''):
+    self.kp = []
+    self.features = []
+    self.num = [5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 110]
+    self.dims = [(100, 100)]
+    self.blurs = [(3, 3)]
+    self.det = cv.SIFT_create() if sift else cv.ORB_create()
+    self.sift = sift
+    for i in range(len(self.num)):
+      dir = path + '\\cartelli' + str(self.num[i])
+      if os.path.isdir(dir): #better safe than sorry
+        files = os.listdir(dir)
+        kp_list = []
+        des_list = []
+        for file in files:
+          file = os.path.join(dir, file)  
+          if os.path.isfile(file):
+            img = cv.imread(file)
+            for dim in self.dims:
+              for blur in self.blurs:
+                img = cv.resize(img, dim, interpolation = cv.INTER_AREA)
+                gray= cv.cvtColor(img,cv.COLOR_BGR2GRAY)
+                _, gray = cv.threshold(gray, 0, 255, cv.THRESH_BINARY+cv.THRESH_OTSU)
+                kp = self.det.detect(gray,None)
+                kp, des = self.det.compute(gray, kp)
+                kp_list.append(kp)
+                des_list.append(des)
+        #once we have the keypoints for all the templates of A SPECIFIC traffic sign,
+        #we add the list of keypoints to self.kp, which is a list of lists
+        self.kp.append(kp_list)
+        self.features.append(des_list) #keypoints for the i-th image
+    self.bf = cv.BFMatcher_create(normType=cv.NORM_HAMMING2) if not sift else cv.BFMatcher_create(normType=cv.NORM_L2)
+    #now we have the keypoints for all the template images
+    
+  def match(self, sign: np.ndarray) -> int:
+    sign = cv.resize(sign, self.dims[0], interpolation = cv.INTER_LINEAR_EXACT)
+    gray= cv.cvtColor(sign,cv.COLOR_BGR2GRAY)
+    _, gray = cv.threshold(gray, 0, 255, cv.THRESH_BINARY+cv.THRESH_OTSU)
+    det = cv.SIFT_create() if self.sift else cv.ORB_create()
+    kp = det.detect(gray,None)
+    # compute the descriptors with ORB
+    kp, key_ps = det.compute(gray, kp)
+    alpha = 0.8
+    knn = 2
+    #append = True
+    if key_ps is not None:
+      scores = {}
+      for i in range(len(self.num)):
+        best = 0
+        for features in self.features[i]:
+          matches = self.bf.knnMatch(features, key_ps, k=knn)
+          good = []
+          for j in range(len(matches)):
+            """
+            if len(matches[j]) == knn:
+              for k in range(0, knn-1):
+                if not matches[j][k].distance < alpha*matches[j][k+1].distance:
+                  append = False
+                  break
+              if append:
+                good.append([matches[j][0]])
+            """
+            if len(matches[j]) == knn:
+              if matches[j][0].distance < alpha*matches[j][1].distance :#and matches[j][1].distance < alpha*matches[j][2].distance:
+                good.append([matches[j][0]])
+            
+          #print(len(good))
+          if len(good) > best:
+            best = len(good)
+        scores[self.num[i]] = best
+      #ora bisognerebbe mettere che se il primo ed il secondo score non sono ad una 
+      #sufficiente distanza, bisoga buttare il risultato
+      #scores.sort(reverse = True)
+      max_key = max(scores, key=scores.get)
+      values = list(scores.values()) #list of 'scores' values, so the real scores
+      
+      values.sort(reverse = True)
+      if values[0] > 1.25*values[1] and values[0] > 7:
+        return max_key
+      else:
+        return 0
+    else:
+      return 0
+
+class Annotator():
+  def __init__(self, w: int = 1080, h: int = 1920):
+    self.font = cv.FONT_HERSHEY_SIMPLEX
+    self.org = (w//2, round(h//10*9.5))
+    self.fontScale = 1.2
+    self.color = (0, 0, 255)
+    self.thickness = 2
+  def write(self, img: np.ndarray, speed: int, updates: int):
+    if speed == 0:
+      text = 'Speed Limit: None'
+    else:
+      text = 'Speed Limit: ' + str(speed) + 'km/h, ' + str(updates)
+    return cv.putText(img, text, self.org, self.font, self.fontScale, self.color, self.thickness, cv.LINE_AA, False)
+  def reset_params(self, w: int, h: int):
+    self.font = cv.FONT_HERSHEY_SIMPLEX
+    self.org = (w//2, round(h//10*9.5))
+    self.fontScale = 1.2
+    self.color = (0, 0, 255)
+    self.thickness = 2
+
+
+
+class Sign_Detector():
+  def __init__(self) -> None:
+    
+    if os.path.exists(RESULTS_DIR):
+      shutil.rmtree(RESULTS_DIR)
+    os.mkdir(RESULTS_DIR)
+    if os.path.exists(SIGNS_DIR):
+      shutil.rmtree(SIGNS_DIR)
+    os.mkdir(SIGNS_DIR)
+    self.max_radius_ratio = 22
+    self.dt = Detector(maxRadiusRatio=self.max_radius_ratio)
+    self.pre = Preprocessor()
+    self.mat = Matcher(sift = True, path = TEMPLATES_DIR)
+    self.an = Annotator()
+  
+  def detect_image(self, filename : str):
+    #STILL INCOMPLETE: DO NOT CALL
+    original = cv.imread(filename)
+    h = height//4
+    w = width // 3
+    frame = original[original.shape[0]//4 : original.shape[0]//4*3, original.shape[1]//3 : , :] #960x720
+    #cutting away upper and lower 25% (keeping central 50%) and left 33% (keeping right 67%)
+    #frame = frame[h: h*3, w:, :]
+    gray = self.pre.prep(frame)
+    circles = self.dt.detect(gray)
+    n_detected, found = save_circles_from_video(frame, circles, n_detected, h, w, False)
+    if found:
+      #pass
+      sign = extract_sign(original, circles, h, w, n_detected-1)
+      res = self.mat.match(sign)
+      if res != 0:
+          speed = res
+          updates += 1
+    self.an.write(original, speed, updates)
+
+  def detect_video(self, filename : str):
+    cap = cv.VideoCapture(filename) #open video
+    out = cv.VideoWriter(RESULTS_DIR + '\\Detection_video.avi', cv.VideoWriter_fourcc(*'XVID'), 30, (1080, 1920))
+    speed = 0
+    updates = 0
+    n_frames = 0
+    n_detected = 0
+    no_sign = 0 #n° of consecutive frames without any speed limit detected
+    last = 0
+    winners = {5: 0, 10: 0, 15: 0, 20: 0, 25: 0, 30: 0, 40: 0, 50: 0, 60: 0, 70: 0, 80: 0, 90: 0, 100: 0, 110: 0}
+    start_time = time.time()
+    
+    if not cap.isOpened():
+      print("Cannot open camera")
+      exit()
+    ret, original = cap.read()
+    if not ret:
+      print("The stream is empty!")
+      return
+    
+    height, width, _ = original.shape
+    h = height//4
+    w = width // 3
+    self.an.reset_params(width, height)
+    while True:
+    
+      # Capture frame-by-frame
+      ret, original = cap.read()
+      # if frame is read correctly ret is True
+      if not ret:
+        print("Can't receive frame (stream end?). Exiting ...")
+        break
+      #aspect_ratio = original.shape[0] / original.shape[1]
+      ################################# THE NEXT LINE IS IMPORTANT ###############################################
+      original = cv.flip(cv.flip(original, 0), 1) #comment this line if it's Daniel's camera, uncomment if it's Riccardo's camera
+      frame = original[original.shape[0]//4 : round(original.shape[0]//4*3), original.shape[1]//3 : , :] 
+      #cutting away upper and lower 25% (keeping central 50%) and left 33% (keeping right 67%)
+      gray = self.pre.prep(frame)
+      circles = self.dt.detect(gray)
+      found = True if circles is not None else False
+      if found:
+        #pass
+        n_detected += 1
+        sign = extract_sign(original, circles, h, w, n_detected-1)
+        res = self.mat.match(sign)
+        cv.imwrite(SIGNS_DIR + '\\sign' + str(n_detected) + '.jpg', sign)
+        #cv.imwrite(RESULTS_DIR + '\\' + str(n_detected) + '.jpg', original)
+
+        if res != 0:
+          speed = res
+          updates += 1
+          no_sign = 0
+          winners[res] += 1
+        else:
+          no_sign += 1
+      else:
+        no_sign += 1
+      self.an.write(original, speed, updates)
+      
+      #annotated = draw_circles(cv.resize(original, (450, 800), interpolation=cv.INTER_AREA), circles, (1920, 1080), (800, 450))
+      frame_out = draw_circles(original, circles, (height, width), (1920, 1080))
+      cv.imshow('Annotated video: ', cv.resize(frame_out, (450, 800), interpolation=cv.INTER_AREA))
+      
+      if cv.waitKey(1) == ord('q'):
+        break
+      
+      n_frames += 1
+      out.write(frame_out)
+    end_time = time.time()
+    delta_time = round(end_time - start_time, 3)
+    print(f"Processed frames: {n_frames} in {delta_time} ({round(n_frames/delta_time, 3)} fps), found at least a traffic sign in {n_detected} frames.")
+    #print(f"Aspect Ratio: {aspect_ratio}")
+    cap.release()
+    out.release()
+
+def draw_circles(img: np.ndarray, circles:np.ndarray, initial_dim: tuple, final_dim: tuple):
+  if not isinstance(circles, NoneType):
+    #starting by the assumption that we cut away the upper and lower 25% of the image and the 33% on the left
+    circles[0, 0, 1] = (circles[0, 0, 1] + initial_dim[0]//4) * (final_dim[0] /initial_dim[0])
+    circles[0, 0, 0] = (circles[0, 0, 0] + initial_dim[1]//3) * (final_dim[1] /initial_dim[1])
+    #assumption: the aspect ratio is more or less the same
+    circles[0, 0, 2] = circles[0, 0, 2] * (final_dim[0] / initial_dim[0])
     circles = np.uint16(np.around(circles))
     for i in circles[0,:]:
-      # draw the outer circle
-      cv.circle(img,(i[0],i[1]),i[2],(0,255,0),1)
-      # draw the center of the circle
-      cv.circle(img,(i[0],i[1]),2,(0,0,255),2)
-  cv.imshow('Detected Circles:', img)
+    # draw the outer circle
+        cv.circle(img,(i[0],i[1]),i[2],(0,255,0),1)
+    # draw the center of the circle
+    #cv.circle(img,(i[0],i[1]),2,(0,0,255),1)
+  return img
 
-def save_circles_from_video(img: np.ndarray, circles:np.ndarray, n_detected: int) -> int:
+def save_circles_from_video(img: np.ndarray, circles:np.ndarray, n_detected: int, h, w, extract = False) -> int:
   #n_detected keeps track of the n° of frames in which a traffic sign was detected
+  found = False
+  sign = 0
   if not isinstance(circles, NoneType):
+    if extract:
+      sign = extract_sign(img, circles, h, w, n_detected)
     circles = np.uint16(np.around(circles))
     for i in circles[0,:]:
       # draw the outer circle
@@ -100,88 +330,34 @@ def save_circles_from_video(img: np.ndarray, circles:np.ndarray, n_detected: int
     name = str(n_detected) + '.jpg'
     cv.imwrite(RESULTS_DIR + '\\' + name, img)
     n_detected += 1
-  return n_detected
+    found = True
+  return n_detected, found, sign
 
-def extract_sign(img: np.ndarray, circles: np.ndarray) -> np.ndarray:
-  signs = np.zeros((1, 1, 1, 1))
-  if isinstance(circles, NoneType):
-    return np.array([])
-  
-  circles = np.uint16(np.around(circles))
+
+def extract_sign(img: np.ndarray, circles: np.ndarray, h, w, n_det) -> np.ndarray:
+  if isinstance(circles, NoneType): #better safe than sorry
+    return
   for i in circles[0,:]:
-    #TODO:c'è da guardare se le dimensioni che ho preso sono giuste, cioè le x sono x e non y e viceversa
-    top_left = (i[0] - i[2], i[1] - i[2])
-    bottom_right = (i[0] + i[2], i[1] + i[2])
-    sign = img[top_left[0]:bottom_right[0], top_left[1]:bottom_right[1], :]
-    #ora sono da concatenare
+    center = (i[0] + w, i[1] + h)
+    axes = (i[2], i[2])
+    center = np.uint(np.around(center))
+    axes = np.uint(np.around(axes))
+    top_left = (center[0] - axes[0], center[1] - axes[1])
+    bottom_right = (center[0] + axes[0], center[1] + axes[1])
+    sign = img[top_left[1]:bottom_right[1], top_left[0]:bottom_right[0], :]
+    return sign
     
-  cv.imshow('Detected Circles:', img)
+  
+
+
 
 def main():
-    filename = ROOT_DIR +'\\photos\\VID20220808142933.mp4'
-    shutil.rmtree(RESULTS_DIR)
-    os.mkdir(RESULTS_DIR)
-    
-    cap = cv.VideoCapture(filename) #open video
-    if not cap.isOpened():
-        print("Cannot open camera")
-        exit()
-    n_frames = 0
-    n_detected = 0
-    start_time = time.time()
-    h = height//4
-    w = width // 3
-    max_radius_ratio = 15
-    dt = Detector(maxRadiusRatio=max_radius_ratio)
-    pre = Preprocessor()
-    while True:
-      
-      # Capture frame-by-frame
-      ret, frame = cap.read()
-      
-      # if frame is read correctly ret is True
-      if not ret:
-          print("Can't receive frame (stream end?). Exiting ...")
-          break
-      # Our operations on the frame come here
-      
-      #gray = cv.flip(cv.flip(cv.resize(cv.cvtColor(frame, cv.COLOR_BGR2GRAY), (750, 1000), interpolation=cv.INTER_AREA), 0), 1)
-      frame = cv.flip(cv.flip(cv.resize(frame, (width, height), interpolation=cv.INTER_AREA), 0), 1)
-      
-      frame = frame[h: h*3, w:, :]
-      gray = pre.prep(frame)
-      circles = dt.detect(gray)
-      #print(type(circles))
-      #cv.imshow('frame', gray)
-      n_detected = save_circles_from_video(frame, circles, n_detected)
-      n_frames += 1
-    end_time = time.time()
-    delta_time = round(end_time - start_time, 3)
-    print(start_time, end_time)
-    print(f"Processed frames: {n_frames} in {delta_time}, found at least a traffic sign in {n_detected} frames.")
-
-    """
-    img = cv.imread(filename)
-    h_, w_, _ = img.shape
-    #first, we cut away the upper and lower 33.3% of the image, leaving only the 33.3% in the middle
-    #img = img[h_//3: h_//3 * 2, :, :]
-    #now for my phone's camera, i should have 1216x2736 pixels
-    img = cv.resize(img, (750, 1000), interpolation = cv.INTER_AREA) #resize while preserving aspect ratio
-    
-    #img2 = cv.cvtColor(cv.GaussianBlur(img, (3,3), 0), cv.COLOR_BGR2GRAY)
-    img2 = pre.prep(img)
-    
-    circles = dt.detect(img2, print_canny=True)
-    print(type(circles))
-    
-    print_circles(img, circles)
-    cv.waitKey(0)
-    cv.destroyAllWindows()
-    
-    """
-    
+  filename = ROOT_DIR +'\\photos\\VID20220809184413.mp4'
+  sd = Sign_Detector()
+  sd.detect_video(filename)
+  
     
 
 if __name__ == '__main__':
-    main()
+  main()
 
