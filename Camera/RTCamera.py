@@ -36,7 +36,7 @@ class RTCamera(object):
         self.FPS_MS         = int(1/self.FPS * 1000)
 
         self.fps_frames     = 5
-        self.fps_times      = []
+        self.fps_times      = np.array([])
 
         self.record         = False
         self.fourcc         = cv2.VideoWriter_fourcc(*'mp4v')
@@ -123,7 +123,8 @@ class RTCamera(object):
         while True:
             if self.cap.isOpened():
                 (ret, frame) = self.cap.read()
-                if self.rotation is not None:
+
+                if self.rotation is not None and frame is not None:
                     frame = cv2.rotate(frame, self.rotation)
                     frame = frame[self.offset:-self.offset,:,:]
 
@@ -136,7 +137,7 @@ class RTCamera(object):
                     self.output.write(self.frame)
 
                 if len(self.fps_times) <= self.fps_frames:
-                    self.fps_times.append(time.time())
+                    self.fps_times = np.append(self.fps_times, time.monotonic())
                 
             if not self.thread_alive:
                 break
@@ -147,7 +148,7 @@ class RTCamera(object):
         '''
         cv2.waitKey(self.FPS_MS)
         
-        if self.frame is None:
+        if self.frame is None or (self.frame.shape[0] <= 0 or self.frame.shape[1] <= 0):
             return None
 
         if self.has_calibration:
@@ -156,9 +157,6 @@ class RTCamera(object):
         if isinstance(self.frame, cv2.cuda_GpuMat):
             dst = self.frame.download()
             return dst
-
-        if self.frame.shape[0] <= 0 or self.frame.shape[1] <= 0:
-            return None
         
         return self.frame.copy()
 
@@ -198,15 +196,13 @@ class RTCamera(object):
         '''
         this method calculates the framerate
         '''
+        fps = 0
         if len(self.fps_times) >= self.fps_frames:
-            total = 0
-
-            for i in range(self.fps_frames - 1):
-                total += self.fps_times[i + 1] - self.fps_times[i]
+            total = (self.fps_times[1:] - self.fps_times[:self.fps_frames]).sum()
+            fps = 1//(total/(self.fps_frames))
             
-            self.fps_times = []
-            return 1//(total/(self.fps_frames-1))
-        return 0
+            self.fps_times = np.array([])
+        return fps
         
     def set_exposure(self, exp:int):
         '''
@@ -256,16 +252,16 @@ class RTCamera(object):
         '''
         this method automatically tries to adjust the exposure
         '''
-        start_time = time.time()
+        start_time = int(time.monotonic())
         
         read_interval = 0.5
-        last_read = time.time()
+        last_read = time.monotonic()
 
         while True:
             if self.cap.isOpened():
-                if time.time() - last_read > read_interval:
+                if time.monotonic() - last_read > read_interval:
                     (ret, frame) = self.cap.read()
-                    last_read = time.time()
+                    last_read = time.monotonic()
 
                     avg = 0
                     if self.cuda:
@@ -290,7 +286,7 @@ class RTCamera(object):
                         print("Exposure adjusted at {}".format(self.exposure))
                         break
 
-            if time.time() - start_time > 15:
+            if int(time.monotonic()) - start_time > 15:
                 print("could not calibrate camera exposure: {}".format(self.exposure))
                 break
     

@@ -24,6 +24,8 @@ from datetime import datetime
 from pynput.keyboard import Listener
 import logging
 
+import PIL
+
 from RTCamera import RTCamera
 from Geometry import Geometry
 from Preprocessing import Preprocessing
@@ -86,7 +88,7 @@ if __name__ == "__main__":
             continue
 
         if camera.available():
-            if time.time() - start_fps > 2:
+            if time.time() - start_fps > 1:
                 fps = camera.get_fps()
                 start_fps = time.time()
 
@@ -175,6 +177,7 @@ if __name__ == "__main__":
                 cv2.putText(frame,"Distance: {:.2f}".format(distances[idx]), (x + 5, y + 20), fonts, 0.6, GREEN, 2)
 
             cv2.putText(frame, str(fps) + " fps", (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 255, 0), 2, cv2.LINE_AA)
+
             cv2.imshow("frame", frame)
     camera.stop()
     cv2.destroyAllWindows()

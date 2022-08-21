@@ -22,14 +22,6 @@ os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
 from Preprocessing import Preprocessing
 
-def collate_fn(batch):
-    """
-    the collate_fn receives a list of tuples if your __getitem__ function
-    from a Dataset subclass returns a tuple, or just a normal list if your Dataset subclass returns only one element
-    """
-    batch = list(zip(*batch))
-    return tuple(batch)
-
 class BDDDataset(Dataset):
     def __init__(self, data_dir: str, flag: str, hyp: dict, shape: tuple=(360,480), mosaic: bool=False, augment: bool=False, rect: bool=False, image_weights:bool =False,
      stride: int=32, batch_size: int=16, pad: float=0.0):
