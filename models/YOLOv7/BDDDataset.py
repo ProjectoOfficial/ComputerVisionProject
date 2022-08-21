@@ -144,6 +144,15 @@ class BDDDataset(Dataset):
             if labels.size:  # normalized xywh to pixel xyxy format
                 labels[:, 1:] = xywhn2xyxy(labels[:, 1:], w=ratio[0] * w, h=ratio[1] * h, padw=pad[0], padh=pad[1])
 
+            # squaring images
+            im = np.zeros((img.shape[1], img.shape[1], 3), dtype=np.uint8)
+            start = (img.shape[1] - img.shape[0]) // 2
+            im[start: start + img.shape[0], :, :] = img
+            labels[:, 2] += start
+            labels[:, 4] += start
+            img = im.copy()
+            del im
+
         nL = len(labels)  # number of labels
         if nL:
             labels[:, 1:5] = xyxy2xywhn(labels[:, 1:5], w=img.shape[1], h=img.shape[0])  # convert xyxy to xywh
@@ -263,8 +272,8 @@ if __name__ == "__main__":
 
         print("{} {} {} {}".format(x, y, x2, y2))
         cv2.rectangle(img, (x, y), (x2, y2), (255,0,0), 2)
-        cv2.putText(img,"{}".format(cat), (x + 5, y + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (0,0,255), 2)
+        cv2.putText(img,"{}".format(cat), (x + 5, y + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (0,255,255), 1)
 
-    cv2.imshow("frame", img)
+    cv2.imshow("frame", cv2.resize(img, (1080, 1080)))
     cv2.waitKey(0)
     cv2.destroyAllWindows()

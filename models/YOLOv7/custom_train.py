@@ -50,7 +50,8 @@ logger = logging.getLogger(__name__)
 
 def train(data_dir, cfg, hyp, save_dir, epochs, batch_size, total_batch_size, weights, rank, evolve, device, tb_writer=None, linear_lr = False, resume = False, 
         multi_scale: bool = False, adam: bool = True, img_size: tuple = (640, 640), sync_bn: bool = False, noautoanchor: bool = False, local_rank: int = -1, 
-        label_smoothing: float = 0.0, image_weights: bool = False, quad: bool = False, world_size: int = 1):
+        label_smoothing: float = 0.0, image_weights: bool = False, quad: bool = False, world_size: int = 1, notest: bool=False, single_cls: bool=False, bucket: str='',
+        stride: int=20):
 
     logger.info(colorstr('hyperparameters: ') + ', '.join(f'{k}={v}' for k, v in hyp.items()))
 
@@ -62,9 +63,10 @@ def train(data_dir, cfg, hyp, save_dir, epochs, batch_size, total_batch_size, we
     results_file = save_dir / 'results.txt'
 
     # Save run settings
-    '''
+
     with open(save_dir / 'hyp.yaml', 'w') as f:
         yaml.dump(hyp, f, sort_keys=False)
+    '''
     with open(save_dir / 'opt.yaml', 'w') as f:
         yaml.dump(vars(opt), f, sort_keys=False)
     '''
@@ -76,12 +78,14 @@ def train(data_dir, cfg, hyp, save_dir, epochs, batch_size, total_batch_size, we
 
     # TrainSet
     preprocess = Preprocessing()
-    trainset = BDDDataset(data_dir, 'train', hyp, img_size)
-    nc = trainset.n
-    names = trainset.names
+    trainset = BDDDataset(data_dir, 'train', hyp, img_size, mosaic=False, augment=False, rect=True, image_weights=image_weights, stride=stride, batch_size=batch_size)
     
+    nc = 1 if single_cls else len(trainset.names)
+    names = ['item'] if single_cls and len(trainset.names) != 1 else trainset.names
+    assert len(names) == nc, '%g names found for nc=%g dataset in %s' % (len(names), nc, data_dir)  # check
+
     # TestSet
-    testset = BDDDataset(data_dir, 'test', hyp, img_size)
+    testset = BDDDataset(data_dir, 'val', hyp, img_size, mosaic=False, augment=False, rect=True, image_weights=image_weights, stride=stride, batch_size=batch_size)
 
     # Model
     pretrained = weights.endswith('.pt')
@@ -228,7 +232,7 @@ def train(data_dir, cfg, hyp, save_dir, epochs, batch_size, total_batch_size, we
         del ckpt, state_dict
 
     # Image sizes
-    gs = max(int(model.stride.max()), 32)  # grid size (max stride)
+    gs = stride #max(int(model.stride.max()), stride)  # grid size (max stride)
     nl = model.model[-1].nl  # number of detection layers (used for scaling hyp['obj'])
     imgsz, imgsz_test = [check_img_size(x, gs) for x in img_size]  # verify imgsz are gs-multiples
 
@@ -311,7 +315,7 @@ def train(data_dir, cfg, hyp, save_dir, epochs, batch_size, total_batch_size, we
                 trainset.indices = random.choices(range(trainset.n), weights=iw, k=trainset.n)  # rand weighted idx
             # Broadcast if DDP
             if rank != -1:
-                indices = (torch.tensor(trainset.indices()) if rank == 0 else torch.zeros(trainset.n)).int()
+                indices = (torch.tensor(trainset.indices) if rank == 0 else torch.zeros(trainset.n)).int()
                 dist.broadcast(indices, 0)
                 if rank != 0:
                     trainset.indices = indices.cpu().numpy()
@@ -399,12 +403,12 @@ def train(data_dir, cfg, hyp, save_dir, epochs, batch_size, total_batch_size, we
             # mAP
             ema.update_attr(model, include=['yaml', 'nc', 'hyp', 'gr', 'names', 'stride', 'class_weights'])
             final_epoch = epoch + 1 == epochs
-            if not opt.notest or final_epoch:  # Calculate mAP
+            if not notest or final_epoch:  # Calculate mAP
                 results, maps, times = test.test(data_dict,
                                                  batch_size=batch_size * 2,
                                                  imgsz=imgsz_test,
                                                  model=ema.ema,
-                                                 single_cls=opt.single_cls,
+                                                 single_cls=single_cls,
                                                  dataloader=testloader,
                                                  save_dir=save_dir,
                                                  verbose=nc < 50 and final_epoch,
@@ -416,8 +420,8 @@ def train(data_dir, cfg, hyp, save_dir, epochs, batch_size, total_batch_size, we
             # Write
             with open(results_file, 'a') as f:
                 f.write(s + '%10.4g' * 7 % results + '\n')  # append metrics, val_loss
-            if len(opt.name) and opt.bucket:
-                os.system('gsutil cp %s gs://%s/results/results%s.txt' % (results_file, opt.bucket, opt.name))
+            if len(opt.name) and bucket:
+                os.system('gsutil cp %s gs://%s/results/results%s.txt' % (results_file, bucket, opt.name))
 
             # Log
             tags = ['train/box_loss', 'train/obj_loss', 'train/cls_loss',  # train loss
@@ -434,7 +438,7 @@ def train(data_dir, cfg, hyp, save_dir, epochs, batch_size, total_batch_size, we
                 best_fitness = fi
 
             # Save model
-            if (not opt.nosave) or (final_epoch and not opt.evolve):  # if save
+            if (not nosave) or (final_epoch and not evolve):  # if save
                 ckpt = {'epoch': epoch,
                         'best_fitness': best_fitness,
                         'training_results': results_file.read_text(),
@@ -467,7 +471,7 @@ def train(data_dir, cfg, hyp, save_dir, epochs, batch_size, total_batch_size, we
 
         # Test best.pt
         logger.info('%g epochs completed in %.3f hours.\n' % (epoch - start_epoch + 1, (time.time() - t0) / 3600))
-        if opt.data.endswith('coco.yaml') and nc == 80:  # if COCO
+        if data.endswith('coco.yaml') and nc == 80:  # if COCO
             for m in (last, best) if best.exists() else (last):  # speed, mAP tests
                 results, _, _ = test.test(data,
                                           batch_size=batch_size * 2,
@@ -475,7 +479,7 @@ def train(data_dir, cfg, hyp, save_dir, epochs, batch_size, total_batch_size, we
                                           conf_thres=0.001,
                                           iou_thres=0.7,
                                           model=attempt_load(m, device).half(),
-                                          single_cls=opt.single_cls,
+                                          single_cls=single_cls,
                                           dataloader=testloader,
                                           save_dir=save_dir,
                                           save_json=True,
@@ -487,80 +491,50 @@ def train(data_dir, cfg, hyp, save_dir, epochs, batch_size, total_batch_size, we
         for f in last, best:
             if f.exists():
                 strip_optimizer(f)  # strip optimizers
-        if opt.bucket:
-            os.system(f'gsutil cp {final} gs://{opt.bucket}/weights')  # upload
+        if bucket:
+            os.system(f'gsutil cp {final} gs://{bucket}/weights')  # upload
     else:
         dist.destroy_process_group()
     torch.cuda.empty_cache()
     return results
 
 if __name__ == '__main__':
-    
-    '''
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--weights', type=str, default=current+r'\yolov7.pt', help='initial weights path')
-    parser.add_argument('--cfg', type=str, default=current+r'\cfg\training\yolov7.yaml', help='model.yaml path')
-    parser.add_argument('--data', type=str, default=current+r'\data\coco.yaml', help='data.yaml path')
-    parser.add_argument('--hyp', type=str, default=current+r'\data\hyp.scratch.p5.yaml', help='hyperparameters path')
-    parser.add_argument('--epochs', type=int, default=300)
-    parser.add_argument('--batch-size', type=int, default=16, help='total batch size for all GPUs')
-    parser.add_argument('--img-size', nargs='+', type=int, default=[640, 640], help='[train, test] image sizes')
-    parser.add_argument('--rect', action='store_true', help='rectangular training')
-    parser.add_argument('--resume', nargs='?', const=True, default=False, help='resume most recent training')
-    parser.add_argument('--nosave', action='store_true', help='only save final checkpoint')
-    parser.add_argument('--notest', action='store_true', help='only test final epoch')
-    parser.add_argument('--noautoanchor', action='store_true', help='disable autoanchor check')
-    parser.add_argument('--evolve', action='store_true', help='evolve hyperparameters')
-    parser.add_argument('--bucket', type=str, default='', help='gsutil bucket')
-    parser.add_argument('--cache-images', action='store_true', help='cache images for faster training')
-    parser.add_argument('--image-weights', action='store_true', help='use weighted image selection for training')
-    parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
-    parser.add_argument('--multi-scale', action='store_true', help='vary img-size +/- 50%%')
-    parser.add_argument('--single-cls', action='store_true', help='train multi-class data as single-class')
-    parser.add_argument('--adam', action='store_true', help='use torch.optim.Adam() optimizer')
-    parser.add_argument('--sync-bn', action='store_true', help='use SyncBatchNorm, only available in DDP mode')
-    parser.add_argument('--local_rank', type=int, default=-1, help='DDP parameter, do not modify')
-    parser.add_argument('--workers', type=int, default=8, help='maximum number of dataloader workers')
-    parser.add_argument('--project', default=current+r'\runs\train', help='save to project/name')
-    parser.add_argument('--entity', default=None, help='W&B entity')
-    parser.add_argument('--name', default='exp', help='save to project/name')
-    parser.add_argument('--exist-ok', action='store_true', help='existing project/name ok, do not increment')
-    parser.add_argument('--quad', action='store_true', help='quad dataloader')
-    parser.add_argument('--linear-lr', action='store_true', help='linear LR')
-    parser.add_argument('--label-smoothing', type=float, default=0.0, help='Label smoothing epsilon')
-    parser.add_argument('--upload_dataset', action='store_true', help='Upload dataset as W&B artifact table')
-    parser.add_argument('--bbox_interval', type=int, default=-1, help='Set bounding-box image logging interval for W&B')
-    parser.add_argument('--save_period', type=int, default=-1, help='Log model after every "save_period" epoch')
-    parser.add_argument('--artifact_alias', type=str, default="latest", help='version of dataset artifact to be used')
-    opt = parser.parse_args()
-    '''
-
-    DATA_DIR = current+r'\data\bdd100k'
-    WEIGHTS = current+r'\yolov7.pt'
+    ADAM = False
+    ARTIFACT_ALIAS = 'latest'
+    BATCH_SIZE = 2
+    BBOX_INTERVAL = -1
+    BUCKET = ''
+    CACHE_IMAGES = False
     CFG = current+r'\cfg\training\yolov7.yaml'
-    HYP = current+r'\data\hyp.scratch.p5.yaml'
-    NAME = 'exp'
-    RESULTS_DIR = current+r'\runs\train'
-    BATCH_SIZE = 1
+    DATA_DIR = current+r'\data\bdd100k'
     DEVICE = 'cuda'
-    LOCAL_RANK = -1
+    ENTITY = None
+    EPOCHS = 30
     EVOLVE = False
-    NO_TEST = False
-    NO_SAVE = False
-    BUCKET = False
-    LINEAR_LR = False
-    IMG_SIZE = (720, 1280)
-    RESUME = False
-    MULTI_SCALE = False
-    ADAM = True
-    SYNC_BN = False
-    NOAUTOANCHOR = False
-    LABEL_SMOOTHING = 0.0
+    EXIST_OK = False
+    HYP = current+r'\data\hyp.scratch.p5.yaml'
     IMAGE_WEIGHTS = False
+    IMG_SIZE = (1280, 720)
+    LABEL_SMOOTHING = 0.0
+    LINEAR_LR = False
+    LOCAL_RANK = -1
+    MULTI_SCALE = False
+    NAME = 'exp'
+    NOAUTOANCHOR = False
+    NO_SAVE = False
+    NO_TEST = False
+    PROJECT = current + r'\runs\train'
     QUAD = False
-    EPOCHS = 1
+    RECT = True
+    RESUME = False
+    SAVE_PERIOD = -1
+    SINGLE_CLS = False
+    SYNC_BN = False
+    UPLOAD_DATASET = False
+    WEIGHTS = current+r'\yolov7.pt'
+    WORKERS = 0
 
-    settings = {'WEIGHTS': WEIGHTS, 'CFG': CFG, 'HYP': HYP, 'NAME': NAME, 'RESULT_DIR': RESULTS_DIR, 'BATCH_SIZE': BATCH_SIZE,
+    settings = {'WEIGHTS': WEIGHTS, 'CFG': CFG, 'HYP': HYP, 'NAME': NAME, 'RESULT_DIR': PROJECT, 'BATCH_SIZE': BATCH_SIZE,
                 'DEVICE': DEVICE, 'LOCAL_RANK': LOCAL_RANK, 'EVOLVE': EVOLVE, 'NO_TEST': NO_TEST, 'NO_SAVE': NO_SAVE, 'BUCKET': BUCKET}
 
     # Set DDP variables
@@ -578,7 +552,7 @@ if __name__ == '__main__':
     hyp = check_file(HYP)
     assert len(cfg) or len(weights), 'either cfg or weights must be specified'
 
-    save_dir = increment_path(Path(RESULTS_DIR) / NAME, exist_ok=False)  # increment run
+    save_dir = increment_path(Path(PROJECT) / NAME, exist_ok=False)  # increment run
     settings['SAVE_DIR'] = save_dir
 
     # DDP mode
@@ -604,7 +578,7 @@ if __name__ == '__main__':
         tb_writer = None  # init loggers
         if global_rank in [-1, 0]:
             prefix = colorstr('tensorboard: ')
-            logger.info(f"{prefix}Start with 'tensorboard --logdir {RESULTS_DIR}', view at http://localhost:6006/")
+            logger.info(f"{prefix}Start with 'tensorboard --logdir {PROJECT}', view at http://localhost:6006/")
             tb_writer = SummaryWriter(save_dir)  # Tensorboard
         train(DATA_DIR, CFG, hyp, Path(save_dir), EPOCHS, BATCH_SIZE, total_batch_size, weights, global_rank, EVOLVE, device, tb_writer, LINEAR_LR, RESUME,
         MULTI_SCALE, ADAM, IMG_SIZE, SYNC_BN, NOAUTOANCHOR, LOCAL_RANK, LABEL_SMOOTHING, IMAGE_WEIGHTS, QUAD, world_size)
