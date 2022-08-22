@@ -8,6 +8,7 @@ from types import NoneType
 import os
 import time
 import shutil
+from typing import Union, Tuple
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__)) # This is your Project Root
 RESULTS_DIR = ROOT_DIR + '\\detected_circles'
@@ -171,9 +172,9 @@ class Annotator():
   def __init__(self, w: int = 1080, h: int = 1920):
     self.font = cv.FONT_HERSHEY_SIMPLEX
     self.org = (w//2, round(h//10*9.5))
-    self.fontScale = 1.2
+    self.fontScale = 2
     self.color = (0, 0, 255)
-    self.thickness = 2
+    self.thickness = 3
   def write(self, img: np.ndarray, speed: int, updates: int):
     if speed == 0:
       text = 'Speed Limit: None'
@@ -183,9 +184,9 @@ class Annotator():
   def reset_params(self, w: int, h: int):
     self.font = cv.FONT_HERSHEY_SIMPLEX
     self.org = (w//2, round(h//10*9.5))
-    self.fontScale = 1.2
+    self.fontScale = 1.6
     self.color = (0, 0, 255)
-    self.thickness = 2
+    self.thickness = 3
 
 
 
@@ -203,101 +204,32 @@ class Sign_Detector():
     self.pre = Preprocessor()
     self.mat = Matcher(sift = True, path = TEMPLATES_DIR)
     self.an = Annotator()
-  
-  def detect_image(self, filename : str):
-    #STILL INCOMPLETE: DO NOT CALL
-    original = cv.imread(filename)
-    h = height//4
-    w = width // 3
-    frame = original[original.shape[0]//4 : original.shape[0]//4*3, original.shape[1]//3 : , :] #960x720
-    #cutting away upper and lower 25% (keeping central 50%) and left 33% (keeping right 67%)
-    #frame = frame[h: h*3, w:, :]
-    gray = self.pre.prep(frame)
-    circles = self.dt.detect(gray)
-    n_detected, found = save_circles_from_video(frame, circles, n_detected, h, w, False)
-    if found:
-      #pass
-      sign = extract_sign(original, circles, h, w, n_detected-1)
-      res = self.mat.match(sign)
-      if res != 0:
-          speed = res
-          updates += 1
-    self.an.write(original, speed, updates)
 
-  def detect_video(self, filename : str):
-    cap = cv.VideoCapture(filename) #open video
-    out = cv.VideoWriter(RESULTS_DIR + '\\Detection_video.avi', cv.VideoWriter_fourcc(*'XVID'), 30, (1080, 1920))
+  def detect(self, frame: np.ndarray, h, w) -> Union[bool, np.ndarray, int, int, Tuple]:
+    frame = frame.copy()
+    original = frame.copy()
+    
     speed = 0
     updates = 0
-    n_frames = 0
     n_detected = 0
-    no_sign = 0 #n° of consecutive frames without any speed limit detected
-    last = 0
-    winners = {5: 0, 10: 0, 15: 0, 20: 0, 25: 0, 30: 0, 40: 0, 50: 0, 60: 0, 70: 0, 80: 0, 90: 0, 100: 0, 110: 0}
-    start_time = time.time()
     
-    if not cap.isOpened():
-      print("Cannot open camera")
-      exit()
-    ret, original = cap.read()
-    if not ret:
-      print("The stream is empty!")
-      return
+    height, width, _ = frame.shape
     
-    height, width, _ = original.shape
-    h = height//4
-    w = width // 3
-    self.an.reset_params(width, height)
-    while True:
     
-      # Capture frame-by-frame
-      ret, original = cap.read()
-      # if frame is read correctly ret is True
-      if not ret:
-        print("Can't receive frame (stream end?). Exiting ...")
-        break
-      #aspect_ratio = original.shape[0] / original.shape[1]
-      ################################# THE NEXT LINE IS IMPORTANT ###############################################
-      original = cv.flip(cv.flip(original, 0), 1) #comment this line if it's Daniel's camera, uncomment if it's Riccardo's camera
-      frame = original[original.shape[0]//4 : round(original.shape[0]//4*3), original.shape[1]//3 : , :] 
-      #cutting away upper and lower 25% (keeping central 50%) and left 33% (keeping right 67%)
-      gray = self.pre.prep(frame)
-      circles = self.dt.detect(gray)
-      found = True if circles is not None else False
-      if found:
-        #pass
-        n_detected += 1
-        sign = extract_sign(original, circles, h, w, n_detected-1)
-        res = self.mat.match(sign)
-        cv.imwrite(SIGNS_DIR + '\\sign' + str(n_detected) + '.jpg', sign)
-        #cv.imwrite(RESULTS_DIR + '\\' + str(n_detected) + '.jpg', original)
+    frame = frame[h : round(h*3), w : , :] 
+    #cutting away upper and lower 25% (keeping central 50%) and left 33% (keeping right 67%)
+    gray = self.pre.prep(frame)
+    circles = self.dt.detect(gray)
+    found = True if circles is not None else False
+    if found:
+      sign = extract_sign(original, circles, h, w, n_detected-1)
+      res = self.mat.match(sign)
 
-        if res != 0:
-          speed = res
-          updates += 1
-          no_sign = 0
-          winners[res] += 1
-        else:
-          no_sign += 1
-      else:
-        no_sign += 1
-      self.an.write(original, speed, updates)
-      
-      #annotated = draw_circles(cv.resize(original, (450, 800), interpolation=cv.INTER_AREA), circles, (1920, 1080), (800, 450))
-      frame_out = draw_circles(original, circles, (height, width), (1920, 1080))
-      cv.imshow('Annotated video: ', cv.resize(frame_out, (450, 800), interpolation=cv.INTER_AREA))
-      
-      if cv.waitKey(1) == ord('q'):
-        break
-      
-      n_frames += 1
-      out.write(frame_out)
-    end_time = time.time()
-    delta_time = round(end_time - start_time, 3)
-    print(f"Processed frames: {n_frames} in {delta_time} ({round(n_frames/delta_time, 3)} fps), found at least a traffic sign in {n_detected} frames.")
-    #print(f"Aspect Ratio: {aspect_ratio}")
-    cap.release()
-    out.release()
+      if res != 0:
+        speed = res
+        updates += 1
+
+    return found, circles, speed, updates, (height, width)
 
 def draw_circles(img: np.ndarray, circles:np.ndarray, initial_dim: tuple, final_dim: tuple):
   if not isinstance(circles, NoneType):
@@ -309,7 +241,7 @@ def draw_circles(img: np.ndarray, circles:np.ndarray, initial_dim: tuple, final_
     circles = np.uint16(np.around(circles))
     for i in circles[0,:]:
     # draw the outer circle
-        cv.circle(img,(i[0],i[1]),i[2],(0,255,0),1)
+        cv.circle(img,(i[0],i[1]),i[2],(0,255,0),3)
     # draw the center of the circle
     #cv.circle(img,(i[0],i[1]),2,(0,0,255),1)
   return img
@@ -352,9 +284,28 @@ def extract_sign(img: np.ndarray, circles: np.ndarray, h, w, n_det) -> np.ndarra
 
 
 def main():
-  filename = ROOT_DIR +'\\photos\\VID20220809184413.mp4'
+  filename = ROOT_DIR +'\\photos\\IMG_20220731_154022.jpg'
   sd = Sign_Detector()
-  sd.detect_video(filename)
+
+  frame = cv.imread(filename)
+
+  if frame.size == 0:
+    exit(0)
+
+  height, width, _ = frame.shape
+  h = height // 4
+  w = width // 3
+  an = Annotator(width, height)
+  found, circles, speed, updates , initial_dim = sd.detect(frame, h, w)
+  if found:
+    an.write(frame, speed, updates)
+    frame_out = draw_circles(frame, circles, initial_dim, (height, width))
+    frame_out = cv.resize(frame_out, (600, 800))
+    cv.imshow("frame", frame_out)
+    cv.waitKey(0)
+    cv.destroyAllWindows()
+  
+  else: print('Not found')
   
     
 
