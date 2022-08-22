@@ -51,7 +51,7 @@ class RTCamera(object):
         self.rvecs = None
         self.tvecs = None
 
-        self.exposure = 0
+        self.exposure = -5
 
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 10)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.resolution[0])

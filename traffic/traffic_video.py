@@ -53,6 +53,7 @@ class Preprocessor():
     h, w, _ = img2.shape
     gray_img = np.reshape(img2[:, :, 2], (h, w)) #from HSV to GRAYSCALE
     return gray_img
+
 """
 Detector class, in which we perform the Canny Edge Detection and the Circles detection via the Hough Transform
 """
@@ -74,7 +75,7 @@ class Detector():
     minimum = gray_img.shape[0] if gray_img.shape[0] < gray_img.shape[1] else gray_img.shape[1]
     maxR = minimum // self.maxRadiusRatio
     minR = minimum // self.minRadiusRatio
-    circles = cv.HoughCircles(image=gray_img, method=self.method, dp=self.dp, minDist=self.minDist, param1=self.param1, param2=self.param2, minRadius=minR, maxRadius=maxR)
+    circles = cv.HoughCircles(image=gray_img, method=self.method, dp=self.dp, minDist=self.minDist, param1=self.param1, param2=self.param2)
     return circles
 
 
@@ -173,7 +174,7 @@ class Annotator():
     self.fontScale = 2
     self.color = (0, 0, 255)
     self.thickness = 3
-    
+
   def write(self, img: np.ndarray, speed: int, updates: int):
     if speed == 0:
       text = 'Speed Limit: None'
@@ -206,6 +207,12 @@ class Sign_Detector():
     self.an = Annotator()
 
   def detect(self, frame: np.ndarray, h, w) -> Union[bool, np.ndarray, int, int, Tuple]:
+    if frame is None:
+      return False, None, 0, 0, (0, 0)
+
+    if frame.size == 0:
+          return False, None, 0, 0, (0, 0)
+
     frame = frame.copy()
     original = frame.copy()
     
@@ -223,7 +230,8 @@ class Sign_Detector():
     found = True if circles is not None else False
     if found:
       sign = extract_sign(original, circles, h, w, n_detected-1)
-      res = self.mat.match(sign)
+      if sign is not None:
+        res = self.mat.match(sign)
 
       if res != 0:
         speed = res
@@ -267,7 +275,7 @@ def save_circles_from_video(img: np.ndarray, circles:np.ndarray, n_detected: int
 
 
 def extract_sign(img: np.ndarray, circles: np.ndarray, h, w, n_det) -> np.ndarray:
-  if circles is not None: #better safe than sorry
+  if circles is None: #better safe than sorry
     return
   for i in circles[0,:]:
     center = (i[0] + w, i[1] + h)
@@ -281,10 +289,8 @@ def extract_sign(img: np.ndarray, circles: np.ndarray, h, w, n_det) -> np.ndarra
     
   
 
-
-
 def main():
-  filename = ROOT_DIR +'\\photos\\IMG_20220731_153624.jpg'
+  filename = ROOT_DIR +'\\photos\\2.jpg'
   sd = Sign_Detector()
 
   frame = cv.imread(filename)
@@ -296,6 +302,7 @@ def main():
   h = height // 4
   w = width // 3
   an = Annotator(width, height)
+  an.org = (20, 50)
   found, circles, speed, updates , initial_dim = sd.detect(frame, h, w)
   if found:
     an.write(frame, speed, updates)
@@ -305,7 +312,8 @@ def main():
     cv.waitKey(0)
     cv.destroyAllWindows()
   
-  else: print('Not found')
+  else: 
+    print('Not found')
   
     
 

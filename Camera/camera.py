@@ -51,6 +51,7 @@ TRANSFORMS = False
 CHESSBOARD = False
 FILENAME = "out"
 RESOLUTION = (1280, 720)
+SAVE_SIGN = False
 
 # Colors
 GREEN = (0, 255, 0)
@@ -72,6 +73,12 @@ logging.getLogger("imported_module").setLevel(logging.ERROR)
 listener = Listener(on_press=on_press)
 
 if __name__ == "__main__":
+    if not os.path.isdir(current + "/signs"):
+        os.makedirs(current + "/signs")
+
+    if not os.path.isdir(current + "/Calibration"):
+        os.makedirs(current + "/Calibration")
+
     camera = RTCamera(CAMERA_DEVICE, fps=30, resolution=RESOLUTION, cuda=True, auto_exposure=False, rotation=cv2.ROTATE_90_COUNTERCLOCKWISE)
     camera.start()
 
@@ -79,9 +86,13 @@ if __name__ == "__main__":
     fps = 0
     listener.start()
     
+    sign_time = time.time()
     sd = Sign_Detector()
     an = Annotator(*RESOLUTION)
     an.org = (20, 50)
+    circles = None
+    speed = 0
+    updates = 0
 
     if CALIBRATE:
         geometry = Geometry(r"{}/Camera/Calibration/".format(os.getcwd()))
@@ -91,6 +102,9 @@ if __name__ == "__main__":
     while True:
         frame = camera.get_frame() 
         if frame is None:
+            continue
+
+        if frame.size == 0:
             continue
 
         if camera.available():
@@ -126,8 +140,6 @@ if __name__ == "__main__":
 
             if PRESSED_KEY == 's' and not RECORDING: # SAVE CURRENT FRAME
                 now = datetime.now()
-                if not os.path.isdir(current + "/Calibration"):
-                    os.makedirs(current + "/Calibration")
                 path = r"{}/Camera/Calibration/frame_{}.jpg".format(os.getcwd(), now.strftime("%d_%m_%Y__%H_%M_%S"))
                 camera.save_frame(path)
 
@@ -184,13 +196,28 @@ if __name__ == "__main__":
                 cv2.putText(frame,"Distance: {:.2f}".format(distances[idx]), (x + 5, y + 20), fonts, 0.6, GREEN, 2)
             '''
 
-            height, width, _ = frame.shape
-            h = height // 4
-            w = width // 3
-            found, circles, speed, updates , initial_dim = sd.detect(frame, h, w)
-            if found:
-                frame = draw_circles(frame, circles, initial_dim, (height, width))
+            if time.time() - sign_time > 0.5:
+                im = PIL.Image.fromarray(frame)
+                converter = PIL.ImageEnhance.Color(im)
+                im = converter.enhance(1.5)
+
+                frame = np.asarray(im)
+
+                height, width, _ = frame.shape
+                h = height // 4
+                w = width // 3
+                found, c, s, u , initial_dim = sd.detect(frame, h, w)
+                if found and s != 0:
+                    circles, speed, updates = c, s, u
+                    frame = draw_circles(frame, circles, initial_dim, (height, width))
+                    an.write(frame, speed, updates)
+                    if SAVE_SIGN:    
+                        now = datetime.now()
+                        path = r"{}\signs\sign_{}.jpg".format(current, now.strftime("%d_%m_%Y__%H_%M_%S"))
+
+                        cv2.imwrite(path, frame)
                 
+                sign_time = time.time()
             an.write(frame, speed, updates)
 
             cv2.putText(frame, str(fps) + " fps", (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 255, 0), 2, cv2.LINE_AA)
