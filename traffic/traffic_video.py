@@ -284,7 +284,7 @@ def extract_sign(img: np.ndarray, circles: np.ndarray, h, w, n_det) -> np.ndarra
 
 
 def main():
-  filename = ROOT_DIR +'\\photos\\IMG_20220731_154022.jpg'
+  filename = ROOT_DIR +'\\photos\\IMG_20220731_153624.jpg'
   sd = Sign_Detector()
 
   frame = cv.imread(filename)
