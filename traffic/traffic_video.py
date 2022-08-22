@@ -3,8 +3,6 @@ from genericpath import isdir, isfile
 import numpy as np
 import cv2 as cv
 
-
-from types import NoneType
 import os
 import time
 import shutil
@@ -175,12 +173,14 @@ class Annotator():
     self.fontScale = 2
     self.color = (0, 0, 255)
     self.thickness = 3
+    
   def write(self, img: np.ndarray, speed: int, updates: int):
     if speed == 0:
       text = 'Speed Limit: None'
     else:
       text = 'Speed Limit: ' + str(speed) + 'km/h, ' + str(updates)
     return cv.putText(img, text, self.org, self.font, self.fontScale, self.color, self.thickness, cv.LINE_AA, False)
+
   def reset_params(self, w: int, h: int):
     self.font = cv.FONT_HERSHEY_SIMPLEX
     self.org = (w//2, round(h//10*9.5))
@@ -232,7 +232,7 @@ class Sign_Detector():
     return found, circles, speed, updates, (height, width)
 
 def draw_circles(img: np.ndarray, circles:np.ndarray, initial_dim: tuple, final_dim: tuple):
-  if not isinstance(circles, NoneType):
+  if circles is not None:
     #starting by the assumption that we cut away the upper and lower 25% of the image and the 33% on the left
     circles[0, 0, 1] = (circles[0, 0, 1] + initial_dim[0]//4) * (final_dim[0] /initial_dim[0])
     circles[0, 0, 0] = (circles[0, 0, 0] + initial_dim[1]//3) * (final_dim[1] /initial_dim[1])
@@ -250,7 +250,7 @@ def save_circles_from_video(img: np.ndarray, circles:np.ndarray, n_detected: int
   #n_detected keeps track of the n° of frames in which a traffic sign was detected
   found = False
   sign = 0
-  if not isinstance(circles, NoneType):
+  if circles is not None:
     if extract:
       sign = extract_sign(img, circles, h, w, n_detected)
     circles = np.uint16(np.around(circles))
@@ -267,7 +267,7 @@ def save_circles_from_video(img: np.ndarray, circles:np.ndarray, n_detected: int
 
 
 def extract_sign(img: np.ndarray, circles: np.ndarray, h, w, n_det) -> np.ndarray:
-  if isinstance(circles, NoneType): #better safe than sorry
+  if circles is not None: #better safe than sorry
     return
   for i in circles[0,:]:
     center = (i[0] + w, i[1] + h)

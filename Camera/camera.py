@@ -30,7 +30,7 @@ from RTCamera import RTCamera
 from Geometry import Geometry
 from Preprocessing import Preprocessing
 from Distance import Distance
-from traffic.traffic_video import Sign_Detector
+from traffic.traffic_video import Sign_Detector, Annotator, draw_circles
 
 '''
 INSTRUCTION:
@@ -50,6 +50,7 @@ BLUR = False
 TRANSFORMS = False
 CHESSBOARD = False
 FILENAME = "out"
+RESOLUTION = (1280, 720)
 
 # Colors
 GREEN = (0, 255, 0)
@@ -71,12 +72,16 @@ logging.getLogger("imported_module").setLevel(logging.ERROR)
 listener = Listener(on_press=on_press)
 
 if __name__ == "__main__":
-    camera = RTCamera(CAMERA_DEVICE, fps=30, resolution=(1280, 720), cuda=True, auto_exposure=False, rotation=cv2.ROTATE_90_COUNTERCLOCKWISE)
+    camera = RTCamera(CAMERA_DEVICE, fps=30, resolution=RESOLUTION, cuda=True, auto_exposure=False, rotation=cv2.ROTATE_90_COUNTERCLOCKWISE)
     camera.start()
 
     start_fps = time.time()
     fps = 0
     listener.start()
+    
+    sd = Sign_Detector()
+    an = Annotator(*RESOLUTION)
+    an.org = (20, 50)
 
     if CALIBRATE:
         geometry = Geometry(r"{}/Camera/Calibration/".format(os.getcwd()))
@@ -167,15 +172,26 @@ if __name__ == "__main__":
                 PRESSED_KEY = ''
 
             # Object detector (using face detector while waiting for Object detection to be ready)
+            '''
             face_detector = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
             bounding_boxes = face_detector.detectMultiScale(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), 1.3, 5)
             distances = Distance().get_Distances(bounding_boxes)
-
+            
             for idx, (x, y, h, w) in enumerate(bounding_boxes):
                 if idx == len(distances):
                     break
                 cv2.rectangle(frame, (x, y), (x + w, y + h), GREEN, 2)
                 cv2.putText(frame,"Distance: {:.2f}".format(distances[idx]), (x + 5, y + 20), fonts, 0.6, GREEN, 2)
+            '''
+
+            height, width, _ = frame.shape
+            h = height // 4
+            w = width // 3
+            found, circles, speed, updates , initial_dim = sd.detect(frame, h, w)
+            if found:
+                frame = draw_circles(frame, circles, initial_dim, (height, width))
+                
+            an.write(frame, speed, updates)
 
             cv2.putText(frame, str(fps) + " fps", (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 255, 0), 2, cv2.LINE_AA)
 
