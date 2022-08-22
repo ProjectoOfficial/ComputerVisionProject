@@ -11,16 +11,22 @@ import torch
 import numpy as np
 import cv2
 from torchvision import transforms
+import random
+import albumentations as A
+from typing import Union
 
 class Preprocessing():
 
-    def __init__(self):
-        global base_transform
-        base_transform = transforms.Compose([
-            transforms.Resize(size=(360, 480)),             # 360p
-            transforms.PILToTensor()
-            ])        
-        self.base_transform = base_transform
+    def __init__(self, size: tuple=(1280, 1280)):
+        self.size = size
+        random.seed(7)
+
+        self.train_trainsform = A.Compose([
+        A.HorizontalFlip(p=0.5),
+        A.ShiftScaleRotate(p=0.5),
+        A.RandomBrightnessContrast(p=0.3),
+        A.RGBShift(r_shift_limit=30, g_shift_limit=30, b_shift_limit=30, p=0.3),
+        ], bbox_params=A.BboxParams(format='coco', label_fields=['class_labels']))
 
     @staticmethod
     def GaussianBlur(frame: np.ndarray, sigma:float):
@@ -30,80 +36,39 @@ class Preprocessing():
     def to_np_frame(cls, frame: np.ndarray):
         return np.swapaxes(np.swapaxes(np.uint8(frame), 0, 2), 0, 1)
 
-    @staticmethod
-    def Transform_base(frame: np.ndarray, boxes: np.ndarray, shape: tuple, np_tensor: bool=False):
+    def Transform_base(self, frame: np.ndarray, boxes: np.ndarray, newsize: tuple, np_tensor: bool=False):
         '''
         Transform_base contains image transformation used both on camera and dataset images. It takes images coming
         from different sources and and modifies them so that the output images all have the same structure
         ''' 
-        old_dims = torch.FloatTensor([1, frame.width, frame.height, frame.width, frame.height]).unsqueeze(0)
-        new_boxes = None
-
-        frame = transforms.Resize(size=shape)(frame)
-        
-        if boxes is not None:
-            new_dims = torch.FloatTensor([1, shape[1], shape[0], shape[1], shape[0]]).unsqueeze(0)
-            new_boxes = (boxes / old_dims) * new_dims
-
-        frame = transforms.PILToTensor()(frame)
+        self.base_transform(frame, boxes)
 
         if np_tensor:
             frame = Preprocessing.to_np_frame(frame.cpu().detach().numpy())
 
-        return frame, new_boxes
+        return frame, boxes
+
+    def Transform_train(self, frame: np.ndarray, labels: np.ndarray) -> Union[np.ndarray, np.ndarray]:
+        class_labels = labels[:, 0]
+        boxes = labels[:, 1:]
+
+        frame = np.swapaxes(np.swapaxes(np.uint8(frame), 0, 2), 0, 1)
+        transformed = self.train_trainsform(image=frame, bboxes=boxes, class_labels=class_labels)
+
+        frame = transformed['image']
+        transformed_bboxes = np.array(transformed['bboxes'])
+        transformed_class_labels = np.array(transformed['class_labels']).reshape(-1, 1)
+
+        frame = np.swapaxes(np.swapaxes(np.uint8(frame), 0, 2), 2, 1)
+        labels = np.hstack((transformed_class_labels, transformed_bboxes))
+        return frame, labels
 
     @staticmethod
-    def Transform_train(frame: np.ndarray):
-
-        rand = transforms.Compose([
-            transforms.RandomRotation(degrees=(-90, 90), interpolation=transforms.InterpolationMode.BILINEAR),
-            transforms.RandomVerticalFlip(p=0.1),
-            transforms.RandomHorizontalFlip(p=0.1),
-            transforms.ColorJitter(),
-            transforms.RandomAutocontrast(p=0.1),
-            transforms.RandomAffine(degrees=(-90, 90), interpolation=transforms.InterpolationMode.BILINEAR),
-        ])
-
-        transform = transforms.Compose([
-            transforms.GaussianBlur(5, sigma=(0.5, 0.5)),
-            #transforms.RandomAutocontrast(p=0.1),
-            transforms.RandomApply(rand, p=0.3),
-        ])
-        
-        image_transformed = transform(frame)
-        frame = Preprocessing.to_np_frame(image_transformed.numpy())
-
-        return frame
-
-
-
-
-
-
-# Robaccia di test da cavare via ma utile da scopiazzare per fare la classe preprocessing
-'''
-TRESH_MODE = "ADAPTIVE_GAUSSIAN" # OTSU ADAPTIVE_GAUSSIAN ADAPTIVE_MEAN
-
-
-def processing(img: np.ndarray):
-        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-        blur = cv2.GaussianBlur(gray, (5, 5), 0)
-        th = None
-
-        if TRESH_MODE == "OTSU":
-            ret, th = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        elif TRESH_MODE == "ADAPTIVE_GAUSSIAN":
-            th = cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 19, 4)
-        elif TRESH_MODE == "ADAPTIVE_MEAN":
-            th = cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 11, 2)
-
-        canny = cv2.Canny(blur, 50, 5)
-
-        rgb_th = cv2.cvtColor(th ,cv2.COLOR_GRAY2RGB)
-        rgb_canny = cv2.cvtColor(canny ,cv2.COLOR_GRAY2RGB)
-        rgb_blur = cv2.cvtColor(blur, cv2.COLOR_GRAY2RGB)
-
-        H_stack = np.hstack((rgb_blur, rgb_th, rgb_canny))
-
-        cv2.imshow("images", H_stack)
-'''
+    def pad_image(img: np.ndarray, labels: np.ndarray=None):
+        im = np.zeros((img.shape[1], img.shape[1], 3), dtype=np.uint8)
+        start = (img.shape[1] - img.shape[0]) // 2
+        im[start: start + img.shape[0], :, :] = img
+        if labels is not None:
+            labels[:, 2] += start
+            labels[:, 4] += start
+        return im, labels

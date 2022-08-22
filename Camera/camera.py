@@ -30,6 +30,7 @@ from RTCamera import RTCamera
 from Geometry import Geometry
 from Preprocessing import Preprocessing
 from Distance import Distance
+from traffic.traffic_video import Sign_Detector
 
 '''
 INSTRUCTION:

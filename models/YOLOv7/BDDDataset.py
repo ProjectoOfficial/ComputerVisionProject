@@ -23,13 +23,15 @@ os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 from Preprocessing import Preprocessing
 
 class BDDDataset(Dataset):
-    def __init__(self, data_dir: str, flag: str, hyp: dict, shape: tuple=(360,480), mosaic: bool=False, augment: bool=False, rect: bool=False, image_weights:bool =False,
+    def __init__(self, data_dir: str, flag: str, hyp: dict, shape: tuple=(360,480), preprocessor: Preprocessing=None ,mosaic: bool=False, augment: bool=False, rect: bool=False, image_weights:bool =False,
      stride: int=32, batch_size: int=16, pad: float=0.0):
 
         self.data_dir = data_dir
         self.flag = flag
         self.base_shape = shape
         self.hyp = hyp
+
+        self.preprocessor = preprocessor
 
         self.mosaic = mosaic
         self.augment = augment
@@ -136,14 +138,7 @@ class BDDDataset(Dataset):
             if labels.size:  # normalized xywh to pixel xyxy format
                 labels[:, 1:] = xywhn2xyxy(labels[:, 1:], w=ratio[0] * w, h=ratio[1] * h, padw=pad[0], padh=pad[1])
 
-            # squaring images
-            im = np.zeros((img.shape[1], img.shape[1], 3), dtype=np.uint8)
-            start = (img.shape[1] - img.shape[0]) // 2
-            im[start: start + img.shape[0], :, :] = img
-            labels[:, 2] += start
-            labels[:, 4] += start
-            img = im.copy()
-            del im
+            img, labels = self.preprocessor.pad_image(img, labels)
 
         nL = len(labels)  # number of labels
         if nL:
@@ -156,6 +151,9 @@ class BDDDataset(Dataset):
         # Convert
         img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, to 3x416x416
         img = np.ascontiguousarray(img)
+
+        if preprocess is not None:
+            img, labels = preprocess.Transform_train(img, labels)
 
         return torch.from_numpy(img), labels_out, self.img_files[index], shapes
 
@@ -249,8 +247,9 @@ if __name__ == "__main__":
     with open(HYP) as f:
         hyp = yaml.load(f, Loader=yaml.SafeLoader)  # load hyps
 
-    preprocess = Preprocessing()
-    trainset = BDDDataset(data_dir=DATA_DIR, flag='train', hyp=hyp, shape=(720, 1280), mosaic=False, augment=False, rect=True, image_weights=False, stride=32, batch_size=1)
+    preprocess = Preprocessing(size=(1280, 1280))
+    trainset = BDDDataset(data_dir=DATA_DIR, flag='train', hyp=hyp, shape=(720, 1280), preprocessor=preprocess, mosaic=False, augment=False, 
+    rect=True, image_weights=False, stride=32, batch_size=1)
 
     it = iter(trainset)
     img, labels, file, shape = next(it)
