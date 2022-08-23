@@ -86,7 +86,6 @@ if __name__ == "__main__":
     fps = 0
     listener.start()
     
-    sign_time = time.time()
     sd = Sign_Detector()
     an = Annotator(*RESOLUTION)
     an.org = (20, 50)
@@ -196,28 +195,26 @@ if __name__ == "__main__":
                 cv2.putText(frame,"Distance: {:.2f}".format(distances[idx]), (x + 5, y + 20), fonts, 0.6, GREEN, 2)
             '''
 
-            if time.time() - sign_time > 0.5:
-                im = PIL.Image.fromarray(frame)
-                converter = PIL.ImageEnhance.Color(im)
-                im = converter.enhance(1.5)
+            im = PIL.Image.fromarray(frame)
+            converter = PIL.ImageEnhance.Color(im)
+            im = converter.enhance(1.5)
 
-                frame = np.asarray(im)
+            frame = np.asarray(im)
 
-                height, width, _ = frame.shape
-                h = height // 4
-                w = width // 3
-                found, c, s, u , initial_dim = sd.detect(frame, h, w)
-                if found and s != 0:
-                    circles, speed, updates = c, s, u
-                    frame = draw_circles(frame, circles, initial_dim, (height, width))
-                    an.write(frame, speed, updates)
-                    if SAVE_SIGN:    
-                        now = datetime.now()
-                        path = r"{}\signs\sign_{}.jpg".format(current, now.strftime("%d_%m_%Y__%H_%M_%S"))
+            height, width, _ = frame.shape
+            h = height // 4
+            w = width // 3
+            found, c, s, u = sd.detect(frame, h, w)
+            if found and s != 0:
+                circles, speed, updates = c, s, u
+                frame = draw_circles(frame, circles, (height, width), (height, width), (h, w))
+                an.write(frame, speed, updates)
+                if SAVE_SIGN:    
+                    now = datetime.now()
+                    path = r"{}\signs\sign_{}.jpg".format(current, now.strftime("%d_%m_%Y__%H_%M_%S"))
 
-                        cv2.imwrite(path, frame)
+                    cv2.imwrite(path, frame)
                 
-                sign_time = time.time()
             an.write(frame, speed, updates)
 
             cv2.putText(frame, str(fps) + " fps", (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 255, 0), 2, cv2.LINE_AA)

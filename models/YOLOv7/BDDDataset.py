@@ -138,12 +138,16 @@ class BDDDataset(Dataset):
             if labels.size:  # normalized xywh to pixel xyxy format
                 labels[:, 1:] = xywhn2xyxy(labels[:, 1:], w=ratio[0] * w, h=ratio[1] * h, padw=pad[0], padh=pad[1])
 
-            img, labels = self.preprocessor.pad_image(img, labels)
+            img, labels = self.preprocessor.Transform_base(img, labels)
+            
+        if preprocess is not None:
+            img, labels = preprocess.Transform_train(img, labels)
 
         nL = len(labels)  # number of labels
         if nL:
             labels[:, 1:5] = xyxy2xywhn(labels[:, 1:5], w=img.shape[1], h=img.shape[0])  # convert xyxy to xywh
         
+
         labels_out = torch.zeros((nL, 6))
         if nL:
             labels_out[:, 1:] = torch.from_numpy(labels)
@@ -151,9 +155,6 @@ class BDDDataset(Dataset):
         # Convert
         img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, to 3x416x416
         img = np.ascontiguousarray(img)
-
-        if preprocess is not None:
-            img, labels = preprocess.Transform_train(img, labels)
 
         return torch.from_numpy(img), labels_out, self.img_files[index], shapes
 

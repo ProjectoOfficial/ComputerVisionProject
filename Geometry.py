@@ -42,7 +42,7 @@ class Geometry(object):
         '''
         this method calculates the camera calibration parameters through images previously acquired by the user by using chessboard method
         '''
-
+        gray = None
         for filename in tqdm(self.images, desc="Calibrating camera"):
             img = cv2.imread(filename)
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -62,7 +62,7 @@ class Geometry(object):
                 
                 cv2.destroyAllWindows()
             
-        self.calibrated, self.mtx, self.dist, self.rvecs, self.tvecs = cv2.calibrateCamera(self.object_points,self.image_points, gray.shape[::-1], None, None)
+        self.calibrated, self.mtx, self.dist, self.rvecs, self.tvecs = cv2.calibrateCamera(self.object_points, self.image_points, gray.shape[::-1], None, None)
         
         mean_error = 0
         for i in range(len(self.object_points)):

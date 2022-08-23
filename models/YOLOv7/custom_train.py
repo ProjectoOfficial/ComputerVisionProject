@@ -48,10 +48,45 @@ from BDDDataset import BDDDataset
 logger = logging.getLogger(__name__)
 
 
-def train(data_dir, cfg, hyp, save_dir, epochs, batch_size, total_batch_size, weights, rank, evolve, device, tb_writer=None, linear_lr = False, resume = False, 
-        multi_scale: bool = False, adam: bool = True, img_size: tuple = (640, 640), sync_bn: bool = False, noautoanchor: bool = False, local_rank: int = -1, 
-        label_smoothing: float = 0.0, image_weights: bool = False, quad: bool = False, world_size: int = 1, notest: bool=False, single_cls: bool=False, bucket: str='',
-        stride: int=20):
+def train(settings: dict):
+    adam = settings['ADAM']
+    artifact_alias = settings['ARTIFACT_ALIAS']
+    batch_size = settings['BATCH_SIZE']
+    bbox_interval = settings['BBOX_INTERVAL']
+    bucket = settings['BUCKET']
+    cache_images = settings['CACHE_IMAGES']
+    cfg = settings['CFG']
+    data_dir = settings['DATA_DIR']
+    device = settings['DEVICE']
+    entity = settings['ENTITY']
+    epochs = settings['EPOCHS']
+    evolve = settings['EVOLVE']
+    exist_ok = settings['EXIST_OK']
+    hyp = settings['HYP']
+    image_weights = settings['IMAGE_WEIGHTS']
+    img_size = settings['IMG_SIZE']
+    label_smoothing = settings['LABEL_SMOOTHING']
+    linear_lr = settings['LINEAR_LR']
+    local_rank = settings['LOCAL_RANK']
+    multi_scale = settings['MULTI_SCALE']
+    name = settings['NAME']
+    noautoanchor = settings['NOAUTOANCHOR']
+    nosave = settings['NO_SAVE']
+    no_test = settings['NO_TEST']
+    project = settings['PROJECT']
+    quad = settings['QUAD']
+    rank = settings['GLOBAL_RANK'] 
+    rect = settings['RECT']
+    resume = settings['RESUME']
+    save_period = settings['SAVE_PERIOD']
+    single_cls = settings['SINGLE_CLS']
+    stride = settings['STRIDE']
+    sync_bn = settings['SYNC_BN']
+    upload_dataset = settings['UPLOAD_DATASET']
+    weights = settings['WEIGHTS']
+    workers = settings['WORKERS']
+    world_size = settings['WORLD_SIZE']
+    
 
     logger.info(colorstr('hyperparameters: ') + ', '.join(f'{k}={v}' for k, v in hyp.items()))
 
@@ -403,25 +438,12 @@ def train(data_dir, cfg, hyp, save_dir, epochs, batch_size, total_batch_size, we
             # mAP
             ema.update_attr(model, include=['yaml', 'nc', 'hyp', 'gr', 'names', 'stride', 'class_weights'])
             final_epoch = epoch + 1 == epochs
-            if not notest or final_epoch:  # Calculate mAP
-                results, maps, times = test.test(data_dict,
-                                                 batch_size=batch_size * 2,
-                                                 imgsz=imgsz_test,
-                                                 model=ema.ema,
-                                                 single_cls=single_cls,
-                                                 dataloader=testloader,
-                                                 save_dir=save_dir,
-                                                 verbose=nc < 50 and final_epoch,
-                                                 plots=plots and final_epoch,
-                                                 wandb_logger=wandb_logger,
-                                                 compute_loss=compute_loss,
-                                                 is_coco=is_coco)
 
             # Write
             with open(results_file, 'a') as f:
                 f.write(s + '%10.4g' * 7 % results + '\n')  # append metrics, val_loss
-            if len(opt.name) and bucket:
-                os.system('gsutil cp %s gs://%s/results/results%s.txt' % (results_file, bucket, opt.name))
+            if len(name) and bucket:
+                os.system('gsutil cp %s gs://%s/results/results%s.txt' % (results_file, bucket, name))
 
             # Log
             tags = ['train/box_loss', 'train/obj_loss', 'train/cls_loss',  # train loss
@@ -469,23 +491,6 @@ def train(data_dir, cfg, hyp, save_dir, epochs, batch_size, total_batch_size, we
         if plots:
             plot_results(save_dir=save_dir)  # save as results.png
 
-        # Test best.pt
-        logger.info('%g epochs completed in %.3f hours.\n' % (epoch - start_epoch + 1, (time.time() - t0) / 3600))
-        if data.endswith('coco.yaml') and nc == 80:  # if COCO
-            for m in (last, best) if best.exists() else (last):  # speed, mAP tests
-                results, _, _ = test.test(data,
-                                          batch_size=batch_size * 2,
-                                          imgsz=imgsz_test,
-                                          conf_thres=0.001,
-                                          iou_thres=0.7,
-                                          model=attempt_load(m, device).half(),
-                                          single_cls=single_cls,
-                                          dataloader=testloader,
-                                          save_dir=save_dir,
-                                          save_json=True,
-                                          plots=False,
-                                          is_coco=False)
-
         # Strip optimizers
         final = best if best.exists() else last  # final model
         for f in last, best:
@@ -529,6 +534,7 @@ if __name__ == '__main__':
     RESUME = False
     SAVE_PERIOD = -1
     SINGLE_CLS = False
+    STRIDE = 20
     SYNC_BN = False
     UPLOAD_DATASET = False
     WEIGHTS = current+r'\yolov7.pt'
@@ -538,7 +544,7 @@ if __name__ == '__main__':
     'CFG': CFG, 'DATA_DIR': DATA_DIR, 'DEVICE': DEVICE, 'ENTITY': ENTITY, 'EPOCHS': EPOCHS, 'EVOLVE': EVOLVE, 'EXIST_OK': EXIST_OK, 'HYP': HYP, 'IMAGE_WEIGHTS': IMAGE_WEIGHTS,
     'IMG_SIZE': IMG_SIZE, 'LABEL_SMOOTHING': LABEL_SMOOTHING, 'LINEAR_LR': LINEAR_LR, 'LOCAL_RANK': LOCAL_RANK, 'MULTI_SCALE': MULTI_SCALE, 'NAME': NAME, 'NOAUTOANCHOR': NOAUTOANCHOR,
     'NO_SAVE': NO_SAVE, 'NO_TEST': NO_TEST, 'PROJECT': PROJECT, 'QUAD': QUAD, 'RECT': RECT, 'RESUME': RESUME, 'SAVE_PERIOD': SAVE_PERIOD, 'SINGLE_CLS': SINGLE_CLS,
-    'SYNC_BN': SYNC_BN, 'UPLOAD_DATASET': UPLOAD_DATASET, 'WEIGHTS': WEIGHTS, 'WORKERS': WORKERS}
+    'SYNC_BN': SYNC_BN, 'UPLOAD_DATASET': UPLOAD_DATASET, 'WEIGHTS': WEIGHTS, 'WORKERS': WORKERS, 'STRIDE': STRIDE}
 
     # Set DDP variables
     world_size = int(os.environ['WORLD_SIZE']) if 'WORLD_SIZE' in os.environ else 1
@@ -583,8 +589,7 @@ if __name__ == '__main__':
             prefix = colorstr('tensorboard: ')
             logger.info(f"{prefix}Start with 'tensorboard --logdir {PROJECT}', view at http://localhost:6006/")
             tb_writer = SummaryWriter(save_dir)  # Tensorboard
-        train(DATA_DIR, CFG, hyp, Path(save_dir), EPOCHS, BATCH_SIZE, total_batch_size, weights, global_rank, EVOLVE, device, tb_writer, LINEAR_LR, RESUME,
-        MULTI_SCALE, ADAM, IMG_SIZE, SYNC_BN, NOAUTOANCHOR, LOCAL_RANK, LABEL_SMOOTHING, IMAGE_WEIGHTS, QUAD, world_size)
+        train(settings)
 
     # Evolve hyperparameters (optional)
     else:
@@ -665,8 +670,7 @@ if __name__ == '__main__':
                 hyp[k] = round(hyp[k], 5)  # significant digits
 
             # Train mutation
-            results = train(DATA_DIR, CFG, hyp.copy(), Path(save_dir), EPOCHS, BATCH_SIZE, total_batch_size, weights, global_rank, EVOLVE, device, None, LINEAR_LR, RESUME,
-                        MULTI_SCALE, ADAM, IMG_SIZE, SYNC_BN, NOAUTOANCHOR, LOCAL_RANK, LABEL_SMOOTHING, IMAGE_WEIGHTS, QUAD, world_size)
+            results = train(settings)
 
             # Write mutation results
             print_mutation(hyp.copy(), results, yaml_file, BUCKET)
