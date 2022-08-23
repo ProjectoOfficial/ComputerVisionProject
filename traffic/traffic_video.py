@@ -7,11 +7,12 @@ import os
 import time
 import shutil
 from typing import Union, Tuple
+from pathlib import Path
 
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__)) # This is your Project Root
-RESULTS_DIR = ROOT_DIR + '\\detected_circles'
-SIGNS_DIR = ROOT_DIR + '\\signs'
-TEMPLATES_DIR = ROOT_DIR + '\\templates_solo_bordo'
+ROOT_DIR = Path(os.path.dirname(os.path.abspath(__file__))) # This is your Project Root
+RESULTS_DIR = ROOT_DIR / 'detected_circles'
+SIGNS_DIR = ROOT_DIR / 'signs'
+TEMPLATES_DIR = ROOT_DIR / 'templates_solo_bordo'
 
 """
 def check_rotation(path_video_file):
@@ -75,7 +76,7 @@ class Detector():
     minimum = gray_img.shape[0] if gray_img.shape[0] < gray_img.shape[1] else gray_img.shape[1]
     maxR = minimum // self.maxRadiusRatio
     minR = minimum // self.minRadiusRatio
-    circles = cv.HoughCircles(image=gray_img, method=self.method, dp=self.dp, minDist=self.minDist, param1=self.param1, param2=self.param2)
+    circles = cv.HoughCircles(image=gray_img, method=self.method, dp=self.dp, minDist=self.minDist, param1=self.param1, param2=self.param2, minRadius=minR, maxRadius=maxR)
     return circles
 
 
@@ -92,7 +93,7 @@ class Matcher():
     self.det = cv.SIFT_create() if sift else cv.ORB_create()
     self.sift = sift
     for i in range(len(self.num)):
-      dir = path + '\\cartelli' + str(self.num[i])
+      dir = path / ('cartelli' + str(self.num[i]))
       if os.path.isdir(dir): #better safe than sorry
         files = os.listdir(dir)
         kp_list = []
@@ -200,7 +201,7 @@ class Sign_Detector():
     if os.path.exists(SIGNS_DIR):
       shutil.rmtree(SIGNS_DIR)
     os.mkdir(SIGNS_DIR)
-    self.max_radius_ratio = 22
+    self.max_radius_ratio = 9
     self.dt = Detector(maxRadiusRatio=self.max_radius_ratio)
     self.pre = Preprocessor()
     self.mat = Matcher(sift = True, path = TEMPLATES_DIR)
@@ -220,16 +221,17 @@ class Sign_Detector():
     updates = 0
     n_detected = 0
     
-    height, width, _ = frame.shape
+    
     
     
     frame = frame[h : round(h*3), w : , :] 
     #cutting away upper and lower 25% (keeping central 50%) and left 33% (keeping right 67%)
+    height, width, _ = frame.shape
     gray = self.pre.prep(frame)
     circles = self.dt.detect(gray)
     found = True if circles is not None else False
     if found:
-      sign = extract_sign(original, circles, h, w, n_detected-1)
+      sign = extract_sign(original, circles, h, w)
       if sign is not None:
         res = self.mat.match(sign)
 
@@ -237,13 +239,13 @@ class Sign_Detector():
         speed = res
         updates += 1
 
-    return found, circles, speed, updates, (height, width)
+    return found, circles, speed, updates
 
-def draw_circles(img: np.ndarray, circles:np.ndarray, initial_dim: tuple, final_dim: tuple):
+def draw_circles(img: np.ndarray, circles:np.ndarray, initial_dim: tuple, final_dim: tuple, crop: tuple):
   if circles is not None:
     #starting by the assumption that we cut away the upper and lower 25% of the image and the 33% on the left
-    circles[0, 0, 1] = (circles[0, 0, 1] + initial_dim[0]//4) * (final_dim[0] /initial_dim[0])
-    circles[0, 0, 0] = (circles[0, 0, 0] + initial_dim[1]//3) * (final_dim[1] /initial_dim[1])
+    circles[0, 0, 1] = (circles[0, 0, 1] + crop[0]) * (final_dim[0] /initial_dim[0])
+    circles[0, 0, 0] = (circles[0, 0, 0] + crop[1]) * (final_dim[1] /initial_dim[1])
     #assumption: the aspect ratio is more or less the same
     circles[0, 0, 2] = circles[0, 0, 2] * (final_dim[0] / initial_dim[0])
     circles = np.uint16(np.around(circles))
@@ -274,7 +276,7 @@ def save_circles_from_video(img: np.ndarray, circles:np.ndarray, n_detected: int
   return n_detected, found, sign
 
 
-def extract_sign(img: np.ndarray, circles: np.ndarray, h, w, n_det) -> np.ndarray:
+def extract_sign(img: np.ndarray, circles: np.ndarray, h, w) -> np.ndarray:
   if circles is None: #better safe than sorry
     return
   for i in circles[0,:]:
@@ -285,12 +287,15 @@ def extract_sign(img: np.ndarray, circles: np.ndarray, h, w, n_det) -> np.ndarra
     top_left = (center[0] - axes[0], center[1] - axes[1])
     bottom_right = (center[0] + axes[0], center[1] + axes[1])
     sign = img[top_left[1]:bottom_right[1], top_left[0]:bottom_right[0], :]
+    if sign.shape[0] == 0 or sign.shape[1] == 0:
+      sign = None
     return sign
     
   
 
 def main():
-  filename = ROOT_DIR +'\\photos\\2.jpg'
+  filename = str(ROOT_DIR / 'photos' / '2.jpg')
+  #filename = 'C:\\Users\\ricca\\Downloads\\Telegram Desktop\\22_08_2022__20_16_39.jpg'
   sd = Sign_Detector()
 
   frame = cv.imread(filename)
@@ -300,14 +305,14 @@ def main():
 
   height, width, _ = frame.shape
   h = height // 4
-  w = width // 3
+  w = width // 10*4 #40%
   an = Annotator(width, height)
   an.org = (20, 50)
-  found, circles, speed, updates , initial_dim = sd.detect(frame, h, w)
+  found, circles, speed, updates = sd.detect(frame, h, w)
   if found:
     an.write(frame, speed, updates)
-    frame_out = draw_circles(frame, circles, initial_dim, (height, width))
-    frame_out = cv.resize(frame_out, (600, 800))
+    frame_out = draw_circles(frame, circles, (height, width), (height, width), (h, w))
+    #frame_out = cv.resize(frame_out, (720, 720))
     cv.imshow("frame", frame_out)
     cv.waitKey(0)
     cv.destroyAllWindows()
