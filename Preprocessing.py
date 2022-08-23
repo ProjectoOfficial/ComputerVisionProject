@@ -9,7 +9,7 @@ from typing import Union
 class Preprocessing():
 
     def __init__(self, size: tuple=(1280, 1280)):
-        self.size = size
+        self.im_size = size
 
         self.crop_transform = A.Compose([
             A.Crop(0, 0, size[0], size[1]),
@@ -34,14 +34,14 @@ class Preprocessing():
     def to_np_frame(cls, frame: np.ndarray):
         return np.swapaxes(np.swapaxes(np.uint8(frame), 0, 2), 0, 1)
 
-    def Transform_base(self, frame: np.ndarray, labels: np.ndarray, np_tensor: bool=False):
+    def Transform_base(self, frame: np.ndarray, labels: np.ndarray = np.zeros((5, 5))):
         '''
         Transform_base contains image transformation used both on camera and dataset images. It takes images coming
         from different sources and and modifies them so that the output images all have the same structure
         ''' 
         
         if frame.shape != (1280, 1280, 3):
-            if frame.size > np.ndarray((*self.size, 3), dtype=frame.dtype).size:
+            if frame.size > np.ndarray((*self.im_size, 3), dtype=frame.dtype).size:
                 class_labels = labels[:, 0]
                 boxes = labels[:, 1:]
                 transformed = self.crop_transform(image=frame, bboxes=boxes, class_labels=class_labels)
@@ -53,7 +53,7 @@ class Preprocessing():
                 if transformed_bboxes.size != 0 and transformed_class_labels.size != 0:
                     labels = np.hstack((transformed_class_labels, transformed_bboxes))
             else:
-                frame, labels = Preprocessing.pad_image(frame, labels)
+                frame, labels = self.pad_image(frame, labels)
 
         return frame, labels
 
@@ -71,12 +71,14 @@ class Preprocessing():
             labels = np.hstack((transformed_class_labels, transformed_bboxes))
         return frame, labels
 
-    @staticmethod
-    def pad_image(img: np.ndarray, labels: np.ndarray=None):
-        im = np.zeros((img.shape[1], img.shape[1], 3), dtype=np.uint8)
-        start = (img.shape[1] - img.shape[0]) // 2
-        im[start: start + img.shape[0], :, :] = img
+    def pad_image(self, img: np.ndarray, labels: np.ndarray=None):
+        im = np.zeros((*self.im_size, 3), dtype=np.uint8)
+        start_w = (self.im_size[0] - img.shape[0]) // 2
+        start_h = (self.im_size[1] - img.shape[1]) // 2
+        im[start_w: start_w + img.shape[0], start_h: start_h + img.shape[1], :] = img
         if labels is not None:
-            labels[:, 2] += start
-            labels[:, 4] += start
+            labels[:, 1] += start_h
+            labels[:, 2] += start_w
+            labels[:, 3] += start_h
+            labels[:, 4] += start_w
         return im, labels

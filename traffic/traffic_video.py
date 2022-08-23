@@ -190,6 +190,27 @@ class Annotator():
     self.color = (0, 0, 255)
     self.thickness = 3
 
+  def draw_circles(self, img: np.ndarray, circles_small:np.ndarray, initial_dim: tuple, final_dim: tuple, crop: tuple):
+    circles = circles_small.copy()
+    if circles is not None:
+      #starting by the assumption that we cut away the upper and lower 25% of the image and the 33% on the left
+      circles[0, 0, 1] = (circles[0, 0, 1] + crop[0]) * (final_dim[0] /initial_dim[0])
+      circles[0, 0, 0] = (circles[0, 0, 0] + crop[1]) * (final_dim[1] /initial_dim[1])
+      #assumption: the aspect ratio is more or less the same
+      circles[0, 0, 2] = circles[0, 0, 2] * (final_dim[0] / initial_dim[0])
+      circles = np.uint16(np.around(circles))
+      for i in circles[0,:]:
+      # draw the outer circle
+          cv.circle(img,(i[0],i[1]),i[2],(0,255,0),3)
+      # draw the center of the circle
+      #cv.circle(img,(i[0],i[1]),2,(0,0,255),1)
+    return img
+  
+  def draw_bb(self, img: np.ndarray, points: tuple, initial_dim: tuple, final_dim: tuple, crop: tuple):
+    if points is not None:
+      cv.rectangle(img = img, pt1 = points[0], pt2 = points[1], color = (0, 255, 255), thickness = 3)
+    return img
+
 
 
 class Sign_Detector():
@@ -227,7 +248,7 @@ class Sign_Detector():
     circles = self.dt.detect(gray)
     found = True if circles is not None else False
     if found:
-      sign = extract_sign(original, circles, h, w)
+      sign = self.extract_sign(original, circles, h, w)
       if sign is not None:
         res = self.mat.match(sign)
 
@@ -237,36 +258,47 @@ class Sign_Detector():
 
     return found, circles, speed, updates
 
-def draw_circles(img: np.ndarray, circles_small:np.ndarray, initial_dim: tuple, final_dim: tuple, crop: tuple):
-  circles = circles_small.copy()
-  if circles is not None:
-    #starting by the assumption that we cut away the upper and lower 25% of the image and the 33% on the left
-    circles[0, 0, 1] = (circles[0, 0, 1] + crop[0]) * (final_dim[0] /initial_dim[0])
-    circles[0, 0, 0] = (circles[0, 0, 0] + crop[1]) * (final_dim[1] /initial_dim[1])
-    #assumption: the aspect ratio is more or less the same
-    circles[0, 0, 2] = circles[0, 0, 2] * (final_dim[0] / initial_dim[0])
-    circles = np.uint16(np.around(circles))
+  def extract_sign(self, img: np.ndarray, circles: np.ndarray, h, w) -> np.ndarray:
+    if circles is None: #better safe than sorry
+      return
     for i in circles[0,:]:
-    # draw the outer circle
-        cv.circle(img,(i[0],i[1]),i[2],(0,255,0),3)
-    # draw the center of the circle
-    #cv.circle(img,(i[0],i[1]),2,(0,0,255),1)
-  return img
+      center = (i[0] + w, i[1] + h)
+      axes = (i[2], i[2])
+      center = np.uint(np.around(center))
+      axes = np.uint(np.around(axes))
+      top_left = (center[0] - axes[0], center[1] - axes[1])
+      bottom_right = (center[0] + axes[0], center[1] + axes[1])
+      sign = img[top_left[1]:bottom_right[1], top_left[0]:bottom_right[0], :]
+      if sign.shape[0] == 0 or sign.shape[1] == 0:
+        sign = None
+      return sign
+
+  def extract_bb(self, circles: np.ndarray, h, w) :
+    if circles is None: #better safe than sorry
+      return
+    for i in circles[0,:]:
+      center = (i[0] + w, i[1] + h)
+      axes = (i[2], i[2])
+      center = np.uint(np.around(center))
+      axes = np.uint(np.around(axes))
+      top_left = (center[0] - axes[0], center[1] - axes[1])
+      bottom_right = (center[0] + axes[0], center[1] + axes[1])
+      points = (top_left, bottom_right)
+      if points[0][0] >= points[1][0] or points[0][1] >= points[1][1]:
+        points = None
+      return points
 
 
 
-def draw_bb(img: np.ndarray, points: tuple, initial_dim: tuple, final_dim: tuple, crop: tuple):
-  if points is not None:
-    cv.rectangle(img = img, pt1 = points[0], pt2 = points[1], color = (0, 255, 255), thickness = 3)
-  return img
 
-def save_circles_from_video(img: np.ndarray, circles:np.ndarray, n_detected: int, h, w, extract = False) -> int:
+
+def save_circles_from_video(sd: Sign_Detector, img: np.ndarray, circles:np.ndarray, n_detected: int, h, w, extract = False) -> int:
   #n_detected keeps track of the n° of frames in which a traffic sign was detected
   found = False
   sign = 0
   if circles is not None:
     if extract:
-      sign = extract_sign(img, circles, h, w, n_detected)
+      sign = sd.extract_sign(img, circles, h, w, n_detected)
     circles = np.uint16(np.around(circles))
     for i in circles[0,:]:
       # draw the outer circle
@@ -280,50 +312,7 @@ def save_circles_from_video(img: np.ndarray, circles:np.ndarray, n_detected: int
   return n_detected, found, sign
 
 
-def extract_sign(img: np.ndarray, circles: np.ndarray, h, w) -> np.ndarray:
-  if circles is None: #better safe than sorry
-    return
-  for i in circles[0,:]:
-    center = (i[0] + w, i[1] + h)
-    axes = (i[2], i[2])
-    center = np.uint(np.around(center))
-    axes = np.uint(np.around(axes))
-    top_left = (center[0] - axes[0], center[1] - axes[1])
-    bottom_right = (center[0] + axes[0], center[1] + axes[1])
-    sign = img[top_left[1]:bottom_right[1], top_left[0]:bottom_right[0], :]
-    if sign.shape[0] == 0 or sign.shape[1] == 0:
-      sign = None
-    return sign
 
-def extract_sign(img: np.ndarray, circles: np.ndarray, h, w) -> np.ndarray:
-  if circles is None: #better safe than sorry
-    return
-  for i in circles[0,:]:
-    center = (i[0] + w, i[1] + h)
-    axes = (i[2], i[2])
-    center = np.uint(np.around(center))
-    axes = np.uint(np.around(axes))
-    top_left = (center[0] - axes[0], center[1] - axes[1])
-    bottom_right = (center[0] + axes[0], center[1] + axes[1])
-    sign = img[top_left[1]:bottom_right[1], top_left[0]:bottom_right[0], :]
-    if sign.shape[0] == 0 or sign.shape[1] == 0:
-      sign = None
-    return sign
-
-def extract_bb(circles: np.ndarray, h, w) :
-  if circles is None: #better safe than sorry
-    return
-  for i in circles[0,:]:
-    center = (i[0] + w, i[1] + h)
-    axes = (i[2], i[2])
-    center = np.uint(np.around(center))
-    axes = np.uint(np.around(axes))
-    top_left = (center[0] - axes[0], center[1] - axes[1])
-    bottom_right = (center[0] + axes[0], center[1] + axes[1])
-    points = (top_left, bottom_right)
-    if points[0][0] >= points[1][0] or points[0][1] >= points[1][1]:
-      points = None
-    return points
   
 
 def main():
@@ -345,7 +334,7 @@ def main():
   if found:
     an.write(frame, speed, updates)
     #frame_out = draw_circles(frame, circles, (height, width), (height, width), (h, w))
-    frame_out = draw_bb(frame, extract_bb(circles, h, w), (height, width), (height, width), (h, w))
+    frame_out = an.draw_bb(frame, sd.extract_bb(circles, h, w), (height, width), (height, width), (h, w))
     #frame_out = cv.resize(frame_out, (720, 720))
     cv.imshow("frame", frame_out)
     cv.waitKey(0)

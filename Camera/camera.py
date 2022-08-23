@@ -20,7 +20,7 @@ from RTCamera import RTCamera
 from Geometry import Geometry
 from Preprocessing import Preprocessing
 from Distance import Distance
-from traffic.traffic_video import Sign_Detector, Annotator, draw_circles
+from traffic.traffic_video import Sign_Detector, Annotator
 
 '''
 INSTRUCTION:
@@ -61,6 +61,8 @@ def on_press(key):
 
 logging.getLogger("imported_module").setLevel(logging.ERROR)
 listener = Listener(on_press=on_press)
+
+preprocessor = Preprocessing((1280, 1280))
 
 if __name__ == "__main__":
     if not os.path.isdir(os.path.join(current, "signs")):
@@ -158,14 +160,14 @@ if __name__ == "__main__":
                 cv2.destroyAllWindows()
             
             if BLUR:
-                frame = Preprocessing.GaussianBlur(frame, 1)
+                frame = preprocessor.GaussianBlur(frame, 1)
 
             if TRANSFORMS:
-                frame = Preprocessing.Transform_base(frame)
+                (frame, _) = preprocessor.Transform_base(frame)
 
             if CHESSBOARD:
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                ret, corners = cv2.findChessboardCorners(gray, (7,9), cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_FAST_CHECK)
+                ret, corners = cv2.findChessboardCorners(gray, (7,9), cv2.CALIB_CB_ADtAPTIVE_THRESH + cv2.CALIB_CB_FAST_CHECK)
                 if ret:
                     cv2.drawChessboardCorners(frame, (7,9), corners, ret)
 
@@ -197,7 +199,7 @@ if __name__ == "__main__":
             found, c, s, u = sd.detect(frame, h, w)
             if found and s != 0:
                 circles, speed, updates = c, s, u
-                frame = draw_circles(frame, circles, (height, width), (height, width), (h, w))
+                frame_out = an.draw_bb(frame, sd.extract_bb(circles, h, w), (height, width), (height, width), (h, w))
                 an.write(frame, speed, updates)
                 if SAVE_SIGN:    
                     path = os.path.join(current, 'signs', 'sign_{}.jpg'.format(current, datetime.now().strftime("%d_%m_%Y__%H_%M_%S")))
