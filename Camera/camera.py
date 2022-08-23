@@ -1,16 +1,6 @@
 #export OPENBLAS_CORETYPE=ARMV8
-__author__ = "Daniel Rossi, Riccardo Salami, Filippo Ferrari"
-__copyright__ = "Copyright 2022"
-__credits__ = ["Daniel Rossi", "Riccardo Salami", "Filippo Ferrari"]
-__license__ = "GPL-3.0"
-__version__ = "1.0.0"
-__maintainer__ = "Daniel Rossi"
-__email__ = "miniprojectsofficial@gmail.com"
-__status__ = "Computer Vision Exam"
-
 import os
 import sys
-
 
 current = os.path.dirname(os.path.realpath(__file__))  
 parent = os.path.dirname(current)
@@ -73,11 +63,14 @@ logging.getLogger("imported_module").setLevel(logging.ERROR)
 listener = Listener(on_press=on_press)
 
 if __name__ == "__main__":
-    if not os.path.isdir(current + "/signs"):
-        os.makedirs(current + "/signs")
+    if not os.path.isdir(os.path.join(current, "signs")):
+        os.makedirs(os.path.join(current, "signs"))
 
-    if not os.path.isdir(current + "/Calibration"):
-        os.makedirs(current + "/Calibration")
+    if not os.path.isdir(os.path.join(current, "Calibration")):
+        os.makedirs(os.path.join(current, "Calibration"))
+
+    if not os.path.isdir(os.path.join(current, "Recordings")):
+        os.makedirs(os.path.join(current, "Recordings"))
 
     camera = RTCamera(CAMERA_DEVICE, fps=30, resolution=RESOLUTION, cuda=True, auto_exposure=False, rotation=cv2.ROTATE_90_COUNTERCLOCKWISE)
     camera.start()
@@ -94,7 +87,7 @@ if __name__ == "__main__":
     updates = 0
 
     if CALIBRATE:
-        geometry = Geometry(r"{}/Camera/Calibration/".format(os.getcwd()))
+        geometry = Geometry(os.path.join(current, 'Calibration'))
         calibrated, mtx, dist, rvecs, tvecs = geometry.get_calibration()
         camera.calibrate(calibrated, mtx, dist, rvecs, tvecs)
 
@@ -120,9 +113,7 @@ if __name__ == "__main__":
             if PRESSED_KEY == 'r': # REGISTER/STOP RECORDING
                 if not RECORDING:
                     print("recording started...")
-                    now = datetime.now()
-                    dt_string = now.strftime("%d_%m_%Y__%H_%M_%S")
-                    camera.register("{}__{}.mp4".format(FILENAME, dt_string))
+                    camera.register(os.path.join(current, "Recordings", "{}__{}.mp4".format(FILENAME, datetime.now().strftime("%d_%m_%Y__%H_%M_%S"))))
                     RECORDING = True
                 else:
                     camera.stop_recording()
@@ -138,8 +129,7 @@ if __name__ == "__main__":
                 camera.set_exposure(exp)
 
             if PRESSED_KEY == 's' and not RECORDING: # SAVE CURRENT FRAME
-                now = datetime.now()
-                path = r"{}/Camera/Calibration/frame_{}.jpg".format(os.getcwd(), now.strftime("%d_%m_%Y__%H_%M_%S"))
+                path = os.path.join(current, 'Calibration', 'frame_{}.jpg'.format(datetime.now().strftime("%d_%m_%Y__%H_%M_%S")))
                 camera.save_frame(path)
 
                 print("saved frame {} ".format(path))
@@ -147,7 +137,7 @@ if __name__ == "__main__":
             if PRESSED_KEY == 'c' and not RECORDING: # CALIBRATE CAMERA
                 print("Calibration in process, please wait...\n")
                 cv2.destroyAllWindows()
-                geometry = Geometry(r"{}/Camera/Calibration/".format(os.getcwd()))
+                geometry = Geometry(os.path.join(current, 'Calibration'))
                 calibrated, mtx, dist, rvecs, tvecs = geometry.get_calibration()
                 camera.calibrate(calibrated, mtx, dist, rvecs, tvecs)
 
@@ -210,8 +200,7 @@ if __name__ == "__main__":
                 frame = draw_circles(frame, circles, (height, width), (height, width), (h, w))
                 an.write(frame, speed, updates)
                 if SAVE_SIGN:    
-                    now = datetime.now()
-                    path = r"{}\signs\sign_{}.jpg".format(current, now.strftime("%d_%m_%Y__%H_%M_%S"))
+                    path = os.path.join(current, 'signs', 'sign_{}.jpg'.format(current, datetime.now().strftime("%d_%m_%Y__%H_%M_%S")))
 
                     cv2.imwrite(path, frame)
                 

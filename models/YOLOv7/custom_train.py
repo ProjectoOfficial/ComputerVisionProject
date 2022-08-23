@@ -78,6 +78,7 @@ def train(settings: dict):
     rank = settings['GLOBAL_RANK'] 
     rect = settings['RECT']
     resume = settings['RESUME']
+    save_dir = settings['SAVE_DIR']
     save_period = settings['SAVE_PERIOD']
     single_cls = settings['SINGLE_CLS']
     stride = settings['STRIDE']
@@ -91,15 +92,15 @@ def train(settings: dict):
     logger.info(colorstr('hyperparameters: ') + ', '.join(f'{k}={v}' for k, v in hyp.items()))
 
     # Directories
-    wdir = save_dir / 'weights'
+    wdir = Path(os.path.join(save_dir, 'weights'))
     wdir.mkdir(parents=True, exist_ok=True)  # make dir
-    last = wdir / 'last.pt'
-    best = wdir / 'best.pt'
-    results_file = save_dir / 'results.txt'
+    last = Path(os.path.join(save_dir, 'last.pt'))
+    best = Path(os.path.join(save_dir, 'best.pt'))
+    results_file = Path(os.path.join(save_dir, 'results.txt'))
 
     # Save run settings
 
-    with open(save_dir / 'hyp.yaml', 'w') as f:
+    with open(Path(os.path.join(save_dir, 'hyp.yaml')), 'w') as f:
         yaml.dump(hyp, f, sort_keys=False)
     '''
     with open(save_dir / 'opt.yaml', 'w') as f:
@@ -113,14 +114,14 @@ def train(settings: dict):
 
     # TrainSet
     preprocess = Preprocessing()
-    trainset = BDDDataset(data_dir, 'train', hyp, img_size, mosaic=False, augment=False, rect=True, image_weights=image_weights, stride=stride, batch_size=batch_size)
+    trainset = BDDDataset(data_dir, 'train', hyp, img_size, preprocessor=preprocess ,mosaic=False, augment=False, rect=True, image_weights=image_weights, stride=stride, batch_size=batch_size)
     
     nc = 1 if single_cls else len(trainset.names)
     names = ['item'] if single_cls and len(trainset.names) != 1 else trainset.names
     assert len(names) == nc, '%g names found for nc=%g dataset in %s' % (len(names), nc, data_dir)  # check
 
     # TestSet
-    testset = BDDDataset(data_dir, 'val', hyp, img_size, mosaic=False, augment=False, rect=True, image_weights=image_weights, stride=stride, batch_size=batch_size)
+    testset = BDDDataset(data_dir, 'val', hyp, img_size, preprocessor=preprocess ,mosaic=False, augment=False, rect=True, image_weights=image_weights, stride=stride, batch_size=batch_size)
 
     # Model
     pretrained = weights.endswith('.pt')
@@ -337,7 +338,7 @@ def train(settings: dict):
                 f'Using {trainloader.num_workers} dataloader workers\n'
                 f'Logging results to {save_dir}\n'
                 f'Starting training for {epochs} epochs...')
-    torch.save(model, wdir / 'init.pt')
+    torch.save(model, Path(os.path.join( wdir, 'init.pt')))
     for epoch in range(start_epoch, epochs):  # epoch ------------------------------------------------------------------
         model.train()
 
@@ -420,7 +421,7 @@ def train(settings: dict):
 
                 # Plot
                 if plots and ni < 10:
-                    f = save_dir / f'train_batch{ni}.jpg'  # filename
+                    f = Path(os.path.join(save_dir, 'train_batch{}.jpg'.format(ni)))  # filename
                     Thread(target=plot_images, args=(imgs, targets, paths, f), daemon=True).start()
                     # if tb_writer:
                     #     tb_writer.add_image(f, result, dataformats='HWC', global_step=epoch)
@@ -475,13 +476,13 @@ def train(settings: dict):
                 if best_fitness == fi:
                     torch.save(ckpt, best)
                 if (best_fitness == fi) and (epoch >= 200):
-                    torch.save(ckpt, wdir / 'best_{:03d}.pt'.format(epoch))
+                    torch.save(ckpt, Path(os.path.join(wdir, 'best_{:03d}.pt'.format(epoch))))
                 if epoch == 0:
-                    torch.save(ckpt, wdir / 'epoch_{:03d}.pt'.format(epoch))
+                    torch.save(ckpt, Path(os.path.join(wdir, 'epoch_{:03d}.pt'.format(epoch))))
                 elif ((epoch+1) % 25) == 0:
-                    torch.save(ckpt, wdir / 'epoch_{:03d}.pt'.format(epoch))
+                    torch.save(ckpt, Path(os.path.join(wdir, 'epoch_{:03d}.pt'.format(epoch))))
                 elif epoch >= (epochs-5):
-                    torch.save(ckpt, wdir / 'epoch_{:03d}.pt'.format(epoch))
+                    torch.save(ckpt, Path(os.path.join(wdir, 'epoch_{:03d}.pt'.format(epoch))))
                 del ckpt
 
         # end epoch ----------------------------------------------------------------------------------------------------
@@ -510,14 +511,14 @@ if __name__ == '__main__':
     BBOX_INTERVAL = -1
     BUCKET = ''
     CACHE_IMAGES = False
-    CFG = current+r'\cfg\training\yolov7.yaml'
-    DATA_DIR = current+r'\data\bdd100k'
+    CFG = os.path.join(current, 'cfg', 'training', 'yolov7.yaml')
+    DATA_DIR = os.path.join(current, 'data', 'bdd100k')
     DEVICE = 'cuda'
     ENTITY = None
     EPOCHS = 30
     EVOLVE = False
     EXIST_OK = False
-    HYP = current+r'\data\hyp.scratch.p5.yaml'
+    HYP = os.path.join(current, 'data', 'hyp.scratch.p5.yaml')
     IMAGE_WEIGHTS = False
     IMG_SIZE = (1280, 720)
     LABEL_SMOOTHING = 0.0
@@ -528,7 +529,7 @@ if __name__ == '__main__':
     NOAUTOANCHOR = False
     NO_SAVE = False
     NO_TEST = False
-    PROJECT = current + r'\runs\train'
+    PROJECT = os.path.join(current, 'runs', 'train')
     QUAD = False
     RECT = True
     RESUME = False
@@ -537,7 +538,7 @@ if __name__ == '__main__':
     STRIDE = 20
     SYNC_BN = False
     UPLOAD_DATASET = False
-    WEIGHTS = current+r'\yolov7.pt'
+    WEIGHTS = os.path.join(current, 'yolov7.pt')
     WORKERS = 0
 
     settings = {'ADAM': ADAM, 'ARTIFACT_ALIAS': ARTIFACT_ALIAS, 'BATCH_SIZE': BATCH_SIZE, 'BBOX_INTERVAL':BBOX_INTERVAL, 'BUCKET': BUCKET, 'CACHE_IMAGES': CACHE_IMAGES, 
@@ -561,7 +562,7 @@ if __name__ == '__main__':
     hyp = check_file(HYP)
     assert len(cfg) or len(weights), 'either cfg or weights must be specified'
 
-    save_dir = increment_path(Path(PROJECT) / NAME, exist_ok=False)  # increment run
+    save_dir = increment_path(Path(os.path.join(PROJECT, NAME)), exist_ok=False)  # increment run
     settings['SAVE_DIR'] = save_dir
 
     # DDP mode
@@ -576,11 +577,13 @@ if __name__ == '__main__':
         BATCH_SIZE = total_batch_size // world_size
     settings['TOTAL_BATCH_SIZE'] = total_batch_size
     settings['BATCH_SIZE'] = BATCH_SIZE
+    settings['DEVICE'] = device
 
     # Hyperparameters
     with open(HYP) as f:
         hyp = yaml.load(f, Loader=yaml.SafeLoader)  # load hyps
 
+    settings['HYP'] = hyp
     # Train
     logger.info(settings)
     if not EVOLVE:
@@ -633,7 +636,7 @@ if __name__ == '__main__':
         assert LOCAL_RANK == -1, 'DDP mode not implemented for --evolve'
         NO_TEST, NO_SAVE = True, True  # only test/save final epoch
         # ei = [isinstance(x, (int, float)) for x in hyp.values()]  # evolvable indices
-        yaml_file = Path(save_dir) / 'hyp_evolved.yaml'  # save best result here
+        yaml_file = Path(os.path.join(save_dir, 'hyp_evolved.yaml'))  # save best result here
         if BUCKET:
             os.system('gsutil cp gs://%s/evolve.txt .' % BUCKET)  # download evolve.txt if exists
 
@@ -669,6 +672,10 @@ if __name__ == '__main__':
                 hyp[k] = min(hyp[k], v[2])  # upper limit
                 hyp[k] = round(hyp[k], 5)  # significant digits
 
+            settings['BUCKET'] = BUCKET
+            settings['NO_SAVE'] = NO_SAVE
+            settings['NO_TEST'] = NO_TEST
+            settings['HYP'] = HYP
             # Train mutation
             results = train(settings)
 

@@ -63,7 +63,7 @@ class BDDDataset(Dataset):
 
             # Check cached labels data
             cache = None
-            cache_path = (Path(self.data_dir + r'\\' + flag)).with_suffix('.cache')  # cached labels
+            cache_path = (Path(os.path.join(self.data_dir, flag))).with_suffix('.cache')  # cached labels
             if cache_path.is_file():
                 cache = torch.load(cache_path)
                 cache.pop('version')
@@ -138,10 +138,13 @@ class BDDDataset(Dataset):
             if labels.size:  # normalized xywh to pixel xyxy format
                 labels[:, 1:] = xywhn2xyxy(labels[:, 1:], w=ratio[0] * w, h=ratio[1] * h, padw=pad[0], padh=pad[1])
 
-            img, labels = self.preprocessor.Transform_base(img, labels)
+            if self.preprocessor is not None:
+                img, labels = self.preprocessor.Transform_base(img, labels)
+            else:
+                print("WARNING: Preprocessor has not been initialized and it won't be used!")
             
-        if preprocess is not None:
-            img, labels = preprocess.Transform_train(img, labels)
+        if self.preprocessor is not None:
+            img, labels = self.preprocessor.Transform_train(img, labels)
 
         nL = len(labels)  # number of labels
         if nL:
@@ -242,8 +245,8 @@ class BDDDataset(Dataset):
 
 
 if __name__ == "__main__":
-    DATA_DIR = current+r'\data\bdd100k'
-    HYP = current+r'\data\hyp.scratch.p5.yaml'
+    DATA_DIR = os.path.join(current, 'data', 'bdd100k')
+    HYP = os.path.join(current, 'data', 'hyp.scratch.p5.yaml')
     hyp = check_file(HYP)
     with open(HYP) as f:
         hyp = yaml.load(f, Loader=yaml.SafeLoader)  # load hyps

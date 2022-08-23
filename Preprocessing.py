@@ -1,12 +1,3 @@
-__author__ = "Daniel Rossi, Riccardo Salami, Filippo Ferrari"
-__copyright__ = "Copyright 2022"
-__credits__ = ["Daniel Rossi", "Riccardo Salami", "Filippo Ferrari"]
-__license__ = "GPL-3.0"
-__version__ = "1.0.0"
-__maintainer__ = "Riccardo Salami"
-__email__ = "miniprojectsofficial@gmail.com"
-__status__ = "Computer Vision Exam"
-
 import torch
 import numpy as np
 import cv2
