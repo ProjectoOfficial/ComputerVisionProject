@@ -220,10 +220,6 @@ class Sign_Detector():
     speed = 0
     updates = 0
     n_detected = 0
-    
-    
-    
-    
     frame = frame[h : round(h*3), w : , :] 
     #cutting away upper and lower 25% (keeping central 50%) and left 33% (keeping right 67%)
     height, width, _ = frame.shape
@@ -241,7 +237,8 @@ class Sign_Detector():
 
     return found, circles, speed, updates
 
-def draw_circles(img: np.ndarray, circles:np.ndarray, initial_dim: tuple, final_dim: tuple, crop: tuple):
+def draw_circles(img: np.ndarray, circles_small:np.ndarray, initial_dim: tuple, final_dim: tuple, crop: tuple):
+  circles = circles_small.copy()
   if circles is not None:
     #starting by the assumption that we cut away the upper and lower 25% of the image and the 33% on the left
     circles[0, 0, 1] = (circles[0, 0, 1] + crop[0]) * (final_dim[0] /initial_dim[0])
@@ -254,6 +251,13 @@ def draw_circles(img: np.ndarray, circles:np.ndarray, initial_dim: tuple, final_
         cv.circle(img,(i[0],i[1]),i[2],(0,255,0),3)
     # draw the center of the circle
     #cv.circle(img,(i[0],i[1]),2,(0,0,255),1)
+  return img
+
+
+
+def draw_bb(img: np.ndarray, points: tuple, initial_dim: tuple, final_dim: tuple, crop: tuple):
+  if points is not None:
+    cv.rectangle(img = img, pt1 = points[0], pt2 = points[1], color = (0, 255, 255), thickness = 3)
   return img
 
 def save_circles_from_video(img: np.ndarray, circles:np.ndarray, n_detected: int, h, w, extract = False) -> int:
@@ -290,12 +294,41 @@ def extract_sign(img: np.ndarray, circles: np.ndarray, h, w) -> np.ndarray:
     if sign.shape[0] == 0 or sign.shape[1] == 0:
       sign = None
     return sign
-    
+
+def extract_sign(img: np.ndarray, circles: np.ndarray, h, w) -> np.ndarray:
+  if circles is None: #better safe than sorry
+    return
+  for i in circles[0,:]:
+    center = (i[0] + w, i[1] + h)
+    axes = (i[2], i[2])
+    center = np.uint(np.around(center))
+    axes = np.uint(np.around(axes))
+    top_left = (center[0] - axes[0], center[1] - axes[1])
+    bottom_right = (center[0] + axes[0], center[1] + axes[1])
+    sign = img[top_left[1]:bottom_right[1], top_left[0]:bottom_right[0], :]
+    if sign.shape[0] == 0 or sign.shape[1] == 0:
+      sign = None
+    return sign
+
+def extract_bb(circles: np.ndarray, h, w) :
+  if circles is None: #better safe than sorry
+    return
+  for i in circles[0,:]:
+    center = (i[0] + w, i[1] + h)
+    axes = (i[2], i[2])
+    center = np.uint(np.around(center))
+    axes = np.uint(np.around(axes))
+    top_left = (center[0] - axes[0], center[1] - axes[1])
+    bottom_right = (center[0] + axes[0], center[1] + axes[1])
+    points = (top_left, bottom_right)
+    if points[0][0] >= points[1][0] or points[0][1] >= points[1][1]:
+      points = None
+    return points
   
 
 def main():
   filename = str(ROOT_DIR / 'photos' / '2.jpg')
-  #filename = 'C:\\Users\\ricca\\Downloads\\Telegram Desktop\\22_08_2022__20_16_39.jpg'
+  #filename = 'C:\\Users\\ricca\\OneDrive\\Desktop\\scazzo\\traffic\\photos\\IMG_20220731_153050.jpg'
   sd = Sign_Detector()
 
   frame = cv.imread(filename)
@@ -311,7 +344,8 @@ def main():
   found, circles, speed, updates = sd.detect(frame, h, w)
   if found:
     an.write(frame, speed, updates)
-    frame_out = draw_circles(frame, circles, (height, width), (height, width), (h, w))
+    #frame_out = draw_circles(frame, circles, (height, width), (height, width), (h, w))
+    frame_out = draw_bb(frame, extract_bb(circles, h, w), (height, width), (height, width), (h, w))
     #frame_out = cv.resize(frame_out, (720, 720))
     cv.imshow("frame", frame_out)
     cv.waitKey(0)
