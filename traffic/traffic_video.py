@@ -87,7 +87,7 @@ class Matcher():
   def __init__(self, sift = False, path = ''):
     self.kp = []
     self.features = []
-    self.num = [5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 110]
+    self.num = [5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130]
     self.dims = [(100, 100)]
     self.blurs = [(3, 3)]
     self.det = cv.SIFT_create() if sift else cv.ORB_create()

@@ -14,8 +14,6 @@ from datetime import datetime
 from pynput.keyboard import Listener
 import logging
 
-import PIL
-
 from RTCamera import RTCamera
 from Geometry import Geometry
 from Preprocessing import Preprocessing
@@ -186,12 +184,6 @@ if __name__ == "__main__":
                 cv2.rectangle(frame, (x, y), (x + w, y + h), GREEN, 2)
                 cv2.putText(frame,"Distance: {:.2f}".format(distances[idx]), (x + 5, y + 20), fonts, 0.6, GREEN, 2)
             '''
-
-            im = PIL.Image.fromarray(frame)
-            converter = PIL.ImageEnhance.Color(im)
-            im = converter.enhance(1.5)
-
-            frame = np.asarray(im)
 
             height, width, _ = frame.shape
             h = height // 4
