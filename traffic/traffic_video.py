@@ -240,7 +240,7 @@ class Sign_Detector():
     self.mat = Matcher(sift = True, path = TEMPLATES_DIR)
     self.an = Annotator()
 
-  def detect(self, frame: np.ndarray, h, w) -> Union[bool, np.ndarray, int, int, Tuple]:
+  def detect(self, frame: np.ndarray, h, w, show_results = False) -> Union[bool, np.ndarray, int, int, Tuple]:
     if frame is None:
       return False, None, 0, 0, (0, 0)
 
@@ -260,7 +260,7 @@ class Sign_Detector():
     if found:
       sign = self.extract_sign(original, circles, h, w)
       if sign is not None:
-        res = self.mat.match(sign)
+        res = self.mat.match(sign, show_results)
 
       if res != 0:
         speed = res
@@ -334,7 +334,7 @@ def main():
   w = width // 10*4 #~40%
   an = Annotator(width, height)
   an.org = (20, 50)
-  found, circles, speed, updates = sd.detect(frame, h, w)
+  found, circles, speed, updates = sd.detect(frame, h, w, show_results = False)
   if found:
     an.write(frame, speed, updates)
     #frame_out = draw_circles(frame, circles, (height, width), (height, width), (h, w))
