@@ -81,13 +81,15 @@ class Detector():
 
 
 """
-Matcher class, in which 
+Matcher class, in which, during the set-up phase (when the program is started), we extract the keypoints from the
+"template" speed limit signs: the program can work with different resizing and different blurs, althouhg in the
+current configuration the templates are not blurred since, after testing, we saw that it lowered the accuracy
 """
 class Matcher():
   def __init__(self, sift = False, path = ''):
     self.kp = []
     self.features = []
-    self.num = [5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130]
+    self.num = [5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120] #traffic signs
     self.dims = [(100, 100)]
     self.blurs = [(3, 3)]
     self.det = cv.SIFT_create() if sift else cv.ORB_create()
@@ -117,8 +119,11 @@ class Matcher():
         self.features.append(des_list) #keypoints for the i-th image
     self.bf = cv.BFMatcher_create(normType=cv.NORM_HAMMING2) if not sift else cv.BFMatcher_create(normType=cv.NORM_L2)
     #now we have the keypoints for all the template images
-    
-  def match(self, sign: np.ndarray) -> int:
+  
+  #the match methodresizes the detected sign and extracts the keypoints, using either SIFT or ORB (in our configuration
+  # we decided to use SIFT), then performs the knn method in order to find the template that best corresponds to the
+  # detected sign
+  def match(self, sign: np.ndarray, show_scores = False) -> int:
     sign = cv.resize(sign, self.dims[0], interpolation = cv.INTER_LINEAR_EXACT)
     gray= cv.cvtColor(sign,cv.COLOR_BGR2GRAY)
     _, gray = cv.threshold(gray, 0, 255, cv.THRESH_BINARY+cv.THRESH_OTSU)
@@ -161,6 +166,8 @@ class Matcher():
       values = list(scores.values()) #list of 'scores' values, so the real scores
       
       values.sort(reverse = True)
+      if show_scores:
+        print(scores)
       if values[0] > 1.25*values[1] and values[0] > 7:
         return max_key
       else:
@@ -168,6 +175,7 @@ class Matcher():
     else:
       return 0
 
+#class used for writing and drawing on the image
 class Annotator():
   def __init__(self, w: int = 1080, h: int = 1920):
     self.font = cv.FONT_HERSHEY_SIMPLEX
@@ -206,9 +214,13 @@ class Annotator():
       #cv.circle(img,(i[0],i[1]),2,(0,0,255),1)
     return img
   
-  def draw_bb(self, img: np.ndarray, points: tuple, initial_dim: tuple, final_dim: tuple, crop: tuple):
+  #This function expects the points to be correct with respect to the image's size, so it's advisable
+  #to first compute the points attribute with the Sign_Detector.extract_bb() method, with points being
+  # a tuple of 2 tuples, the first one being the (x, y) coordinates of the top left corner of the bb, the
+  #second one being the bottom right
+  def draw_bb(self, img: np.ndarray, points: tuple, color = (0, 255, 255), thickness = 3):
     if points is not None:
-      cv.rectangle(img = img, pt1 = points[0], pt2 = points[1], color = (0, 255, 255), thickness = 3)
+      cv.rectangle(img = img, pt1 = points[0], pt2 = points[1], color = color, thickness = thickness)
     return img
 
 
@@ -233,17 +245,15 @@ class Sign_Detector():
       return False, None, 0, 0, (0, 0)
 
     if frame.size == 0:
-          return False, None, 0, 0, (0, 0)
+      return False, None, 0, 0, (0, 0)
 
     frame = frame.copy()
     original = frame.copy()
     
     speed = 0
     updates = 0
-    n_detected = 0
     frame = frame[h : round(h*3), w : , :] 
     #cutting away upper and lower 25% (keeping central 50%) and left 33% (keeping right 67%)
-    height, width, _ = frame.shape
     gray = self.pre.prep(frame)
     circles = self.dt.detect(gray)
     found = True if circles is not None else False
@@ -273,24 +283,21 @@ class Sign_Detector():
         sign = None
       return sign
 
-  def extract_bb(self, circles: np.ndarray, h, w) :
-    if circles is None: #better safe than sorry
-      return
-    for i in circles[0,:]:
-      center = (i[0] + w, i[1] + h)
-      axes = (i[2], i[2])
-      center = np.uint(np.around(center))
-      axes = np.uint(np.around(axes))
-      top_left = (center[0] - axes[0], center[1] - axes[1])
-      bottom_right = (center[0] + axes[0], center[1] + axes[1])
-      points = (top_left, bottom_right)
-      if points[0][0] >= points[1][0] or points[0][1] >= points[1][1]:
-        points = None
-      return points
-
-
-
-
+  def extract_bb(self, circles_small: np.ndarray, h, w) :
+    points = None
+    if circles_small is not None: #better safe than sorry
+      circles = circles_small.copy()
+      for i in circles[0,:]:
+        center = (i[0] + w, i[1] + h)
+        axes = (i[2], i[2])
+        center = np.uint(np.around(center))
+        axes = np.uint(np.around(axes))
+        top_left = (center[0] - axes[0], center[1] - axes[1])
+        bottom_right = (center[0] + axes[0], center[1] + axes[1])
+        points = (top_left, bottom_right)
+        if points[0][0] >= points[1][0] or points[0][1] >= points[1][1]:
+          points = None
+    return points
 
 def save_circles_from_video(sd: Sign_Detector, img: np.ndarray, circles:np.ndarray, n_detected: int, h, w, extract = False) -> int:
   #n_detected keeps track of the n° of frames in which a traffic sign was detected
@@ -312,9 +319,6 @@ def save_circles_from_video(sd: Sign_Detector, img: np.ndarray, circles:np.ndarr
   return n_detected, found, sign
 
 
-
-  
-
 def main():
   filename = str(ROOT_DIR / 'photos' / '2.jpg')
   #filename = 'C:\\Users\\ricca\\OneDrive\\Desktop\\scazzo\\traffic\\photos\\IMG_20220731_153050.jpg'
@@ -327,14 +331,14 @@ def main():
 
   height, width, _ = frame.shape
   h = height // 4
-  w = width // 10*4 #40%
+  w = width // 10*4 #~40%
   an = Annotator(width, height)
   an.org = (20, 50)
   found, circles, speed, updates = sd.detect(frame, h, w)
   if found:
     an.write(frame, speed, updates)
     #frame_out = draw_circles(frame, circles, (height, width), (height, width), (h, w))
-    frame_out = an.draw_bb(frame, sd.extract_bb(circles, h, w), (height, width), (height, width), (h, w))
+    frame_out = an.draw_bb(frame, sd.extract_bb(circles, h, w))
     #frame_out = cv.resize(frame_out, (720, 720))
     cv.imshow("frame", frame_out)
     cv.waitKey(0)
