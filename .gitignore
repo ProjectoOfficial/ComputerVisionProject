@@ -12,3 +12,4 @@ coco
 exp
 wandb
 runs
+best.pt

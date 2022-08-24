@@ -67,9 +67,9 @@ def train(hyp, opt, device, tb_writer=None):
 
     if sys.platform == 'win32' and is_coco:
         dir = str(Path(__file__).resolve().parent)
-        data_dict['train'] = os.path.abspath(dir+data_dict['train'])
-        data_dict['val'] = os.path.abspath(dir+data_dict['val'])
-        data_dict['test'] = os.path.abspath(dir+data_dict['test'])
+        data_dict['train'] = os.path.abspath(os.path.join(dir, data_dict['train']))
+        data_dict['val'] = os.path.abspath(os.path.join(dir, data_dict['val']))
+        data_dict['test'] = os.path.abspath(os.path.join(dir, data_dict['test']))
 
     # Logging- Doing this before checking the dataset. Might update data_dict
     loggers = {'wandb': None}  # loggers dict
@@ -535,10 +535,10 @@ sys.path.append(parent)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--weights', type=str, default=current+r'\yolov7.pt', help='initial weights path')
-    parser.add_argument('--cfg', type=str, default=current+r'\cfg\training\yolov7.yaml', help='model.yaml path')
-    parser.add_argument('--data', type=str, default=current+r'\data\coco.yaml', help='data.yaml path')
-    parser.add_argument('--hyp', type=str, default=current+r'\data\hyp.scratch.p5.yaml', help='hyperparameters path')
+    parser.add_argument('--weights', type=str, default=os.path.join(current, 'yolov7.pt'), help='initial weights path')
+    parser.add_argument('--cfg', type=str, default=os.path.join(current,'cfg', 'training', 'yolov7.yaml'), help='model.yaml path')
+    parser.add_argument('--data', type=str, default=os.path.join(current,'data', 'coco.yaml'), help='data.yaml path')
+    parser.add_argument('--hyp', type=str, default=os.path.join(current,'data', 'hyp.scratch.p5.yaml'), help='hyperparameters path')
     parser.add_argument('--epochs', type=int, default=300)
     parser.add_argument('--batch-size', type=int, default=1, help='total batch size for all GPUs')
     parser.add_argument('--img-size', nargs='+', type=int, default=[640, 640], help='[train, test] image sizes')
@@ -558,7 +558,7 @@ if __name__ == '__main__':
     parser.add_argument('--sync-bn', action='store_true', help='use SyncBatchNorm, only available in DDP mode')
     parser.add_argument('--local_rank', type=int, default=-1, help='DDP parameter, do not modify')
     parser.add_argument('--workers', type=int, default=0, help='maximum number of dataloader workers')
-    parser.add_argument('--project', default=current+r'\runs\train', help='save to project/name')
+    parser.add_argument('--project', default=os.path.join(current, 'runs,', 'train'), help='save to project/name')
     parser.add_argument('--entity', default=None, help='W&B entity')
     parser.add_argument('--name', default='exp', help='save to project/name')
     parser.add_argument('--exist-ok', action='store_true', help='existing project/name ok, do not increment')

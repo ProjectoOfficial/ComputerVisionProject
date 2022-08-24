@@ -4,6 +4,13 @@ import os
 from pathlib import Path
 from threading import Thread
 
+import os
+import sys
+
+current = os.path.dirname(os.path.realpath(__file__))  
+parent = os.path.dirname(current)
+sys.path.append(parent)
+
 import numpy as np
 import torch
 import yaml
@@ -72,6 +79,13 @@ def test(data,
         is_coco = data.endswith('coco.yaml')
         with open(data) as f:
             data = yaml.load(f, Loader=yaml.SafeLoader)
+
+    if is_coco:
+        dir = str(Path(__file__).resolve().parent)
+        data['train'] = os.path.abspath(os.path.join(dir, data['train']))
+        data['val'] = os.path.abspath(os.path.join(dir, data['val']))
+        data['test'] = os.path.abspath(os.path.join(dir, data['test']))
+
     check_dataset(data)  # check
     nc = 1 if single_cls else int(data['nc'])  # number of classes
     iouv = torch.linspace(0.5, 0.95, 10).to(device)  # iou vector for mAP@0.5:0.95
@@ -282,19 +296,11 @@ def test(data,
         maps[c] = ap[i]
     return (mp, mr, map50, map, *(loss.cpu() / len(dataloader)).tolist()), maps, t
 
-import os
-import sys
-
-
-current = os.path.dirname(os.path.realpath(__file__))  
-parent = os.path.dirname(current)
-sys.path.append(parent)
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog='test.py')
-    parser.add_argument('--weights', nargs='+', type=str, default=current+r'\yolov7.pt', help='model.pt path(s)')
-    parser.add_argument('--data', type=str, default=current+r'\data\coco.yaml', help='*.data path')
-    parser.add_argument('--batch-size', type=int, default=32, help='size of each image batch')
+    parser.add_argument('--weights', nargs='+', type=str, default=os.path.join(current, 'best.pt'), help='model.pt path(s)')
+    parser.add_argument('--data', type=str, default=os.path.join(current, 'data', 'coco.yaml'), help='*.data path')
+    parser.add_argument('--batch-size', type=int, default=2, help='size of each image batch')
     parser.add_argument('--img-size', type=int, default=640, help='inference size (pixels)')
     parser.add_argument('--conf-thres', type=float, default=0.001, help='object confidence threshold')
     parser.add_argument('--iou-thres', type=float, default=0.65, help='IOU threshold for NMS')
@@ -307,7 +313,7 @@ if __name__ == '__main__':
     parser.add_argument('--save-hybrid', action='store_true', help='save label+prediction hybrid results to *.txt')
     parser.add_argument('--save-conf', action='store_true', help='save confidences in --save-txt labels')
     parser.add_argument('--save-json', action='store_true', help='save a cocoapi-compatible JSON results file')
-    parser.add_argument('--project', default=current+r'\runs\test', help='save to project/name')
+    parser.add_argument('--project', default= os.path.join(current, 'runs', 'test'), help='save to project/name')
     parser.add_argument('--name', default='exp', help='save to project/name')
     parser.add_argument('--exist-ok', action='store_true', help='existing project/name ok, do not increment')
     parser.add_argument('--no-trace', action='store_true', help='don`t trace model')
