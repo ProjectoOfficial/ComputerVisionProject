@@ -72,6 +72,12 @@ def test(data,
     half = device.type != 'cpu' and half_precision  # half precision only supported on CUDA
     if half:
         model.half()
+    
+    if is_coco:
+        dir = str(Path(__file__).resolve().parent)
+        data['train'] = os.path.abspath(os.path.join(dir, data['train']))
+        data['val'] = os.path.abspath(os.path.join(dir, data['val']))
+        data['test'] = os.path.abspath(os.path.join(dir, data['test']))
 
     # Configure
     model.eval()
@@ -79,13 +85,6 @@ def test(data,
         is_coco = data.endswith('coco.yaml')
         with open(data) as f:
             data = yaml.load(f, Loader=yaml.SafeLoader)
-
-    if is_coco:
-        dir = str(Path(__file__).resolve().parent)
-        data['train'] = os.path.abspath(os.path.join(dir, data['train']))
-        data['val'] = os.path.abspath(os.path.join(dir, data['val']))
-        data['test'] = os.path.abspath(os.path.join(dir, data['test']))
-
     check_dataset(data)  # check
     nc = 1 if single_cls else int(data['nc'])  # number of classes
     iouv = torch.linspace(0.5, 0.95, 10).to(device)  # iou vector for mAP@0.5:0.95
@@ -298,7 +297,7 @@ def test(data,
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog='test.py')
-    parser.add_argument('--weights', nargs='+', type=str, default=os.path.join(current, 'best.pt'), help='model.pt path(s)')
+    parser.add_argument('--weights', nargs='+', type=str, default=os.path.join(current, 'yolov7.pt'), help='model.pt path(s)')
     parser.add_argument('--data', type=str, default=os.path.join(current, 'data', 'coco.yaml'), help='*.data path')
     parser.add_argument('--batch-size', type=int, default=2, help='size of each image batch')
     parser.add_argument('--img-size', type=int, default=640, help='inference size (pixels)')
