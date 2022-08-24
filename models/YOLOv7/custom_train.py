@@ -282,7 +282,7 @@ def train(settings: dict):
         logger.info('Using SyncBatchNorm()')
 
     #Trainloader
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size, collate_fn=BDDDataset.collate_fn)
+    trainloader = torch.utils.data.DataLoader(trainset, batch_size, collate_fn=BDDDataset.collate_fn, num_workers=workers)
 
     mlc = np.concatenate(trainset.labels, 0)[:, 0].max()  # max label class
     nb = len(trainloader)  # number of batches
@@ -505,7 +505,7 @@ def train(settings: dict):
     return results
 
 if __name__ == '__main__':
-    ADAM = False
+    ADAM = True
     ARTIFACT_ALIAS = 'latest'
     BATCH_SIZE = 2
     BBOX_INTERVAL = -1
@@ -515,7 +515,7 @@ if __name__ == '__main__':
     DATA_DIR = os.path.join(current, 'data', 'bdd100k')
     DEVICE = 'cuda'
     ENTITY = None
-    EPOCHS = 30
+    EPOCHS = 2
     EVOLVE = False
     EXIST_OK = False
     HYP = os.path.join(current, 'data', 'hyp.scratch.p5.yaml')
@@ -533,13 +533,13 @@ if __name__ == '__main__':
     QUAD = False
     RECT = True
     RESUME = False
-    SAVE_PERIOD = -1
+    SAVE_PERIOD = 1
     SINGLE_CLS = False
     STRIDE = 20
     SYNC_BN = False
     UPLOAD_DATASET = False
     WEIGHTS = os.path.join(current, 'yolov7.pt')
-    WORKERS = 0
+    WORKERS = 6
 
     settings = {'ADAM': ADAM, 'ARTIFACT_ALIAS': ARTIFACT_ALIAS, 'BATCH_SIZE': BATCH_SIZE, 'BBOX_INTERVAL':BBOX_INTERVAL, 'BUCKET': BUCKET, 'CACHE_IMAGES': CACHE_IMAGES, 
     'CFG': CFG, 'DATA_DIR': DATA_DIR, 'DEVICE': DEVICE, 'ENTITY': ENTITY, 'EPOCHS': EPOCHS, 'EVOLVE': EVOLVE, 'EXIST_OK': EXIST_OK, 'HYP': HYP, 'IMAGE_WEIGHTS': IMAGE_WEIGHTS,
