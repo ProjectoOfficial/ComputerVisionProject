@@ -41,6 +41,18 @@ class BDDDataset(Dataset):
         self.mosaic_border = [-self.img_size // 2, -self.img_size // 2]
         self.stride = stride
 
+        self.names = ('person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light', \
+         'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow', \
+         'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee', \
+         'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard', \
+         'tennis racket', 'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple', \
+         'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch', \
+         'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', \
+         'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', \
+         'hair drier', 'toothbrush', 'other person', 'other vehicle', 'rider', 'traffic sign', 'trailer' )
+
+        self.bddnames = ('truck', 'other person', 'motorcycle', 'bus', 'other vehicle', 'rider', 'traffic sign', 'pedestrian', 'bicycle', 'traffic light', 'train', 'car', 'trailer')
+
         if flag == 'train':
             self.img_dir = os.path.join(data_dir, "images", '100k', 'train')
             self.json_dir = os.path.join(data_dir, "labels", 'det_20','det_train.json')
@@ -56,7 +68,6 @@ class BDDDataset(Dataset):
         self.img_files = []
         
         if flag != 'test':
-            self.names = list()
             self.labels = list()
             self.segments = list()
             self.shapes = np.array([])
@@ -189,8 +200,7 @@ class BDDDataset(Dataset):
         cache = dict()
         cache['version'] = 0.1
 
-        shapes = list()
-        hash_names = ('truck', 'other person', 'motorcycle', 'bus', 'other vehicle', 'rider', 'traffic sign', 'pedestrian', 'bicycle', 'traffic light', 'train', 'car', 'trailer')
+        shapes = list() 
         labels = list()
         files = list()
 
@@ -212,7 +222,10 @@ class BDDDataset(Dataset):
 
             if 'labels' in self.label_data[name]:
                 for element in self.label_data[name]['labels']:
-                    bbox = np.array([hash_names.index(element['category']), element['box2d']['x1'], element['box2d']['y1'], element['box2d']['x2'] , element['box2d']['y2']])
+                    cat = element['category']
+                    if cat == 'pedestrian':
+                        cat = 'person'
+                    bbox = np.array([self.names.index(cat), element['box2d']['x1'], element['box2d']['y1'], element['box2d']['x2'] , element['box2d']['y2']])
                     l = np.vstack([l, bbox]) if l.size else bbox
             else:
                 continue # skipping empty labels
@@ -238,10 +251,10 @@ class BDDDataset(Dataset):
             shapes.append(shape)
 
             cache[path_img] = [l, shape, segments]
-        cache['hash_names'] = hash_names
+        cache['hash_names'] = self.names
 
         torch.save(cache, cache_path)
-        return files, shapes, hash_names, labels, segments
+        return files, shapes, self.names, labels, segments
 
 
 if __name__ == "__main__":
@@ -256,19 +269,21 @@ if __name__ == "__main__":
     rect=True, image_weights=False, stride=32, batch_size=1)
 
     it = iter(trainset)
-    img, labels, file, shape = next(it)
-    img = Preprocessing.to_np_frame(img.cpu().detach().numpy())
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    
-    for label in labels.cpu().detach().numpy():
-        cat = trainset.names[int(label[1])]
-        label[2:] = xywhn2xyxy(label[2:].reshape((-1, 4)), w=max(img.shape[:2]), h=min(img.shape[:2]))
-        x, y, x2, y2 = label[2:].astype('uint32')
+    for i in range(10):
+        img, labels, file, shape = next(it)
+        img = Preprocessing.to_np_frame(img.cpu().detach().numpy())
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        
+        for label in labels.cpu().detach().numpy():
+            cat = trainset.names[int(label[1])]
+            label[2:] = xywhn2xyxy(label[2:].reshape((-1, 4)), w=max(img.shape[:2]), h=min(img.shape[:2]))
+            x, y, x2, y2 = label[2:].astype('uint32')
 
-        print("{} {} {} {}".format(x, y, x2, y2))
-        cv2.rectangle(img, (x, y), (x2, y2), (255,0,0), 2)
-        cv2.putText(img,"{}".format(cat), (x + 5, y + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (0,255,255), 1)
+            print("{} {} {} {}".format(x, y, x2, y2))
+            cv2.rectangle(img, (x, y), (x2, y2), (255,0,0), 2)
+            cv2.putText(img,"{} - {}".format(cat, int(label[1])), (x + 5, y + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (255,0,255), 1)
 
-    cv2.imshow("frame", cv2.resize(img, (1080, 1080)))
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+        cv2.imshow("frame", cv2.resize(img, (1080, 1080)))
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+        print("\n")
