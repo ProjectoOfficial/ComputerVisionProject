@@ -307,7 +307,7 @@ def train(settings: dict):
 
     # DDP mode
     if cuda and rank != -1:
-        model = DDP(model, device_ids=[local_rank], output_device=local_rank,
+        model = DDP(model, device_ids=[int(local_rank)], output_device=int(local_rank),
                     # nn.MultiheadAttention incompatibility with DDP https://github.com/pytorch/pytorch/issues/26698
                     find_unused_parameters=any(isinstance(layer, nn.MultiheadAttention) for layer in model.modules()))
 
@@ -568,10 +568,10 @@ if __name__ == '__main__':
     # DDP mode
     total_batch_size = BATCH_SIZE
     device = select_device(DEVICE, batch_size=BATCH_SIZE)
-    if LOCAL_RANK != -1:
+    if int(LOCAL_RANK) != -1:
         assert torch.cuda.device_count() > int(LOCAL_RANK)
-        torch.cuda.set_device(LOCAL_RANK)
-        device = torch.device('cuda', LOCAL_RANK)
+        torch.cuda.set_device(int(LOCAL_RANK))
+        device = torch.device('cuda', int(LOCAL_RANK))
         dist.init_process_group(backend='nccl', init_method='env://')  # distributed backend
         assert BATCH_SIZE % world_size == 0, '--batch-size must be multiple of CUDA device count'
         BATCH_SIZE = total_batch_size // world_size
@@ -633,7 +633,7 @@ if __name__ == '__main__':
             if 'anchors' not in hyp:  # anchors commented in hyp.yaml
                 hyp['anchors'] = 3
                 
-        assert LOCAL_RANK == -1, 'DDP mode not implemented for --evolve'
+        assert int(LOCAL_RANK) == -1, 'DDP mode not implemented for --evolve'
         NO_TEST, NO_SAVE = True, True  # only test/save final epoch
         # ei = [isinstance(x, (int, float)) for x in hyp.values()]  # evolvable indices
         yaml_file = Path(os.path.join(save_dir, 'hyp_evolved.yaml'))  # save best result here
