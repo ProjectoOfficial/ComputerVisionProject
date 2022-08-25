@@ -8,6 +8,7 @@ import time
 import shutil
 from typing import Union, Tuple
 from pathlib import Path
+from models.YOLOv7.utils.general import xyxy2xywhn
 
 ROOT_DIR = Path(os.path.dirname(os.path.abspath(__file__))) # This is your Project Root
 RESULTS_DIR = ROOT_DIR / 'detected_circles'
@@ -298,6 +299,28 @@ class Sign_Detector():
         if points[0][0] >= points[1][0] or points[0][1] >= points[1][1]:
           points = None
     return points
+  
+  def extract_bb_yolo(self, circles_small: np.ndarray, h, w, real_h, real_w) :
+    """
+    Parameters:
+    circles_small = the circles detected on the pre-processed image
+    h, w = the values of the cropping in height and width
+    real_h, real_w = the dimensions of the original image, needed for the normalization of the BB
+    """
+    points = None
+    if circles_small is not None: #better safe than sorry
+      circles = circles_small.copy()
+      for i in circles[0,:]:
+        center = (i[0] + w, i[1] + h)
+        axes = (i[2], i[2])
+        center = np.uint(np.around(center))
+        axes = np.uint(np.around(axes))
+        points = np.array((center[0] - axes[0], center[1] - axes[1], center[0] + axes[0], center[1] + axes[1]))
+        if points[0] >= points[2] or points[1] >= points[3]:
+          points = None
+    return xyxy2xywhn(x=points, w = real_w, h = real_h)
+  
+  
 
 def save_circles_from_video(sd: Sign_Detector, img: np.ndarray, circles:np.ndarray, n_detected: int, h, w, extract = False) -> int:
   #n_detected keeps track of the n° of frames in which a traffic sign was detected
