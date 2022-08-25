@@ -281,7 +281,8 @@ def train(settings: dict):
         logger.info('Using SyncBatchNorm()')
 
     #Trainloader
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size, collate_fn=BDDDataset.collate_fn, num_workers=workers)
+    sampler = torch.utils.data.distributed.DistributedSampler(trainset) if rank != -1 else None
+    trainloader = torch.utils.data.DataLoader(trainset, batch_size, collate_fn=BDDDataset.collate_fn, num_workers=workers, sampler=sampler)
 
     mlc = np.concatenate(trainset.labels, 0)[:, 0].max()  # max label class
     nb = len(trainloader)  # number of batches
@@ -502,9 +503,11 @@ def train(settings: dict):
     return results
 
 if __name__ == '__main__':
+    MULTI_GPU = False
+
     ADAM = True
     ARTIFACT_ALIAS = 'latest'
-    BATCH_SIZE = 8
+    BATCH_SIZE = 24 if MULTI_GPU else 8
     BBOX_INTERVAL = -1
     BUCKET = ''
     CACHE_IMAGES = False
@@ -520,7 +523,7 @@ if __name__ == '__main__':
     IMG_SIZE = (640, 640)
     LABEL_SMOOTHING = 0.0
     LINEAR_LR = False
-    LOCAL_RANK = -1
+    LOCAL_RANK = int(os.environ['LOCAL_RANK']) if MULTI_GPU else -1
     MULTI_SCALE = False
     NAME = 'custom'
     NOAUTOANCHOR = False
@@ -528,7 +531,7 @@ if __name__ == '__main__':
     NO_TEST = False
     PROJECT = os.path.join(current, 'runs', 'train')
     QUAD = False
-    RECT = True
+    RECT = False
     RESUME = False
     SAVE_PERIOD = 1
     SINGLE_CLS = False
@@ -536,7 +539,7 @@ if __name__ == '__main__':
     SYNC_BN = False # True with multiple GPUs
     UPLOAD_DATASET = False
     WEIGHTS = os.path.join(current, 'yolov7_training.pt')
-    WORKERS = 6
+    WORKERS = 4 if MULTI_GPU else 6
 
     settings = {'ADAM': ADAM, 'ARTIFACT_ALIAS': ARTIFACT_ALIAS, 'BATCH_SIZE': BATCH_SIZE, 'BBOX_INTERVAL':BBOX_INTERVAL, 'BUCKET': BUCKET, 'CACHE_IMAGES': CACHE_IMAGES, 
     'CFG': CFG, 'DATA_DIR': DATA_DIR, 'DEVICE': DEVICE, 'ENTITY': ENTITY, 'EPOCHS': EPOCHS, 'EVOLVE': EVOLVE, 'EXIST_OK': EXIST_OK, 'HYP': HYP, 'IMAGE_WEIGHTS': IMAGE_WEIGHTS,

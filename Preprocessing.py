@@ -13,7 +13,7 @@ class Preprocessing():
 
         self.resize_transform = A.Compose([
             A.Resize(size[0], size[1], p=1, always_apply=True),
-        ], bbox_params=A.BboxParams(format='pascal_voc', label_fields=['class_labels']))
+        ], bbox_params=A.BboxParams(format='pascal_voc', min_area=3, label_fields=['class_labels']))
 
         self.train_trainsform = A.Compose([
             A.AdvancedBlur(p=0.2),
@@ -24,7 +24,7 @@ class Preprocessing():
             A.RandomBrightnessContrast(p=0.2),
             A.ColorJitter(p=0.1),
             A.RGBShift(r_shift_limit=30, g_shift_limit=30, b_shift_limit=30, p=0.2),
-        ], bbox_params=A.BboxParams(format='pascal_voc', min_area=10, label_fields=['class_labels']))
+        ], bbox_params=A.BboxParams(format='pascal_voc', min_area=3, label_fields=['class_labels']))
 
     @staticmethod
     def GaussianBlur(frame: np.ndarray, sigma:float):
