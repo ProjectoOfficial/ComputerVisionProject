@@ -513,7 +513,7 @@ if __name__ == '__main__':
     CACHE_IMAGES = False
     CFG = os.path.join(current, 'cfg', 'training', 'yolov7.yaml')
     DATA_DIR = os.path.join(current, 'data', 'bdd100k')
-    DEVICE = '0'
+    DEVICE = '0, 1' if MULTI_GPU else -1
     ENTITY = None
     EPOCHS = 2
     EVOLVE = False
@@ -523,10 +523,10 @@ if __name__ == '__main__':
     IMG_SIZE = (640, 640)
     LABEL_SMOOTHING = 0.0
     LINEAR_LR = False
-    LOCAL_RANK = int(os.environ['LOCAL_RANK']) if MULTI_GPU else -1
+    LOCAL_RANK = os.environ['LOCAL_RANK'] if MULTI_GPU else -1
     MULTI_SCALE = False
     NAME = 'custom'
-    NOAUTOANCHOR = False
+    NOAUTOANCHOR = True
     NO_SAVE = False
     NO_TEST = False
     PROJECT = os.path.join(current, 'runs', 'train')
@@ -569,7 +569,7 @@ if __name__ == '__main__':
     total_batch_size = BATCH_SIZE
     device = select_device(DEVICE, batch_size=BATCH_SIZE)
     if LOCAL_RANK != -1:
-        assert torch.cuda.device_count() > LOCAL_RANK
+        assert torch.cuda.device_count() > int(LOCAL_RANK)
         torch.cuda.set_device(LOCAL_RANK)
         device = torch.device('cuda', LOCAL_RANK)
         dist.init_process_group(backend='nccl', init_method='env://')  # distributed backend
