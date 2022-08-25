@@ -39,7 +39,7 @@ TRANSFORMS = False
 CHESSBOARD = False
 FILENAME = "out"
 RESOLUTION = (1280, 720)
-SAVE_SIGN = False
+SAVE_SIGN = True
 
 # Colors
 GREEN = (0, 255, 0)
@@ -191,11 +191,14 @@ if __name__ == "__main__":
             found, c, s, u = sd.detect(frame, h, w)
             if found and s != 0:
                 circles, speed, updates = c, s, u
-                frame_out = an.draw_bb(frame, sd.extract_bb(circles, h, w), (height, width), (height, width), (h, w))
+
+                bboxes = sd.extract_bb(circles, h, w)
+                if bboxes is not None:
+                    frame = an.draw_bb(frame, bboxes)
+
                 an.write(frame, speed, updates)
                 if SAVE_SIGN:    
-                    path = os.path.join(current, 'signs', 'sign_{}.jpg'.format(current, datetime.now().strftime("%d_%m_%Y__%H_%M_%S")))
-
+                    path = os.path.join(current, 'signs', 'sign_{}.jpg'.format(datetime.now().strftime("%d_%m_%Y__%H_%M_%S")))
                     cv2.imwrite(path, frame)
                 
             an.write(frame, speed, updates)
