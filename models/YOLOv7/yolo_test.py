@@ -31,40 +31,36 @@ from utils.plots import plot_images, output_to_target, plot_study_txt
 from utils.torch_utils import select_device, time_synchronized, TracedModel
 
 class Test():
-    def __init__(self, weigths: str, batch_size: int, device: str, project: str, name: str = 'exp', save_txt: bool = False, half_precision : bool = True, imgsz: tuple = (1280, 1280),
+    def __init__(self, weigths: str, batch_size: int, device: str, project: str, name: str = 'exp', save_txt: bool = False, half_precision : bool = True, imgsz: int = 640,
     live_test: bool = False):
         self.batch_size = batch_size
         self.device = device
         self.name = name
-        self.names = tuple
+        self.names = tuple()
         self.nc = 0
         self.project = project
         self.save_txt = save_txt
         self.weigths = weigths
 
         self.device = select_device(device, batch_size=batch_size)
-
-        # Set save directory
-        save_dir = Path(increment_path(Path(project) / name, exist_ok=False))  # increment run
-        (save_dir / 'labels' if save_txt else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
         
         # Load model
-        self.model = attempt_load(weigths, map_location=device)  # load FP32 model
+        self.model = attempt_load(weigths, map_location=self.device)  # load FP32 model
         gs = max(int(self.model.stride.max()), 32)  # grid size (max stride)
         imgsz = check_img_size(imgsz, s=gs)  # check img_size
 
         self.names = self.model.names if hasattr(self.model, 'names') else self.model.module.names # load classes
 
         # Set half precision model
-        self.half = device.type != 'cpu' and half_precision  # half precision only supported on CUDA
+        self.half = self.device.type != 'cpu' and half_precision  # half precision only supported on CUDA
         if self.half:
             self.model.half()
 
-        self.nc = int(len(self.classes))  # number of classes
+        self.nc = int(len(self.names))  # number of classes
 
         if not live_test:
-            if device.type != 'cpu':
-                self.model(torch.zeros(1, 3, imgsz, imgsz).to(device).type_as(next(self.model.parameters())))  # run once
+            if self.device.type != 'cpu':
+                self.model(torch.zeros(1, 3, imgsz, imgsz).to(self.device).type_as(next(self.model.parameters())))  # run once
 
 
     def predict(self, img: torch.Tensor):
@@ -80,15 +76,16 @@ class Test():
 
 if __name__ == '__main__':
     DATA_DIR = os.path.join(current, 'data', 'bdd100k')
-    DEVICE = 'cuda'
-    BATCH_SIZE = 1
+    DEVICE = '0'
+    BATCH_SIZE = 8
     COMPUTE_LOSS = None
-    CONF_THRES=0.001,
-    IMG_SIZE = (1280, 720)
+    CONF_THRES= 0.001
+    IMG_SIZE = 640
     IMAGE_WEIGHTS = False
-    IOU_THRES=0.65,  # for NMS
+    IOU_THRES= 0.65  # for NMS
     IS_COCO = False
     HYP = os.path.join(current, 'data', 'hyp.scratch.p5.yaml')
+    NAME = 'custom'
     PLOTS = True
     PROJECT = os.path.join(current, 'runs', 'test') # save dir
     SAVE_CONF = True
@@ -98,15 +95,20 @@ if __name__ == '__main__':
     STRIDE = 20
     TASK = 'val'
     VERBOSE = True
-    WEIGHTS = os.path.join(current, 'yolov7_training.pt')
+    WEIGHTS = os.path.join(current, 'last.pt')
     WORKERS = 6
+
+    # Set save directory
+    save_dir = Path(increment_path(Path(PROJECT) / NAME, exist_ok=False))  # increment run
+    (save_dir / 'labels' if SAVE_TXT else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
     
     if isinstance(DATA_DIR, str):
         IS_COCO = DATA_DIR.endswith('coco.yaml')
     
     if not IS_COCO:
-        preprocessor = Preprocessing()
-        valset = BDDDataset(DATA_DIR, TASK, HYP, IMG_SIZE, preprocessor=preprocessor ,mosaic=False, augment=False, rect=True, image_weights=IMAGE_WEIGHTS, stride=STRIDE, batch_size=BATCH_SIZE) 
+        data_size = (1280, 720)
+        preprocessor = Preprocessing((IMG_SIZE, IMG_SIZE))
+        valset = BDDDataset(DATA_DIR, TASK, HYP, data_size, preprocessor=preprocessor ,mosaic=False, augment=False, rect=True, image_weights=IMAGE_WEIGHTS, stride=STRIDE, batch_size=BATCH_SIZE) 
         valloader = torch.utils.data.DataLoader(valset, BATCH_SIZE, collate_fn=BDDDataset.collate_fn, num_workers=WORKERS)
     else:
         with open(DATA_DIR) as f:
@@ -117,7 +119,7 @@ if __name__ == '__main__':
             valloader, valset = create_dataloader(data[task], IMG_SIZE, BATCH_SIZE, STRIDE, pad=0.5, rect=True,
                                             prefix=colorstr(f'{task}: '))[0]
 
-    tester = Test(WEIGHTS, BATCH_SIZE, DEVICE, PROJECT)
+    tester = Test(WEIGHTS, BATCH_SIZE, DEVICE, save_dir)
 
     seen = 0
     confusion_matrix = ConfusionMatrix(nc=tester.nc)
@@ -174,7 +176,7 @@ if __name__ == '__main__':
                 for *xyxy, conf, cls in predn.tolist():
                     xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
                     line = (cls, *xywh, conf) if SAVE_CONF else (cls, *xywh)  # label format
-                    with open(Path(PROJECT) / 'labels' / (path.stem + '.txt'), 'a') as f:
+                    with open(save_dir / 'labels' / (path.stem + '.txt'), 'a') as f:
                         f.write(('%g ' * len(line)).rstrip() % line + '\n')
             
             # Append to pycocotools JSON dictionary
@@ -227,15 +229,15 @@ if __name__ == '__main__':
 
         # Plot images
         if PLOTS and batch_i < 3:
-            f = Path(PROJECT) / f'test_batch{batch_i}_labels.jpg'  # labels
+            f = save_dir / f'test_batch{batch_i}_labels.jpg'  # labels
             Thread(target=plot_images, args=(img, targets, paths, f, names), daemon=True).start()
-            f = Path(PROJECT) / f'test_batch{batch_i}_pred.jpg'  # predictions
+            f = save_dir / f'test_batch{batch_i}_pred.jpg'  # predictions
             Thread(target=plot_images, args=(img, output_to_target(out), paths, f, names), daemon=True).start()
     
     # Compute statistics
     stats = [np.concatenate(x, 0) for x in zip(*stats)]  # to numpy
     if len(stats) and stats[0].any():
-        p, r, ap, f1, ap_class = ap_per_class(*stats, plot=PLOTS, save_dir=Path(PROJECT), names=names)
+        p, r, ap, f1, ap_class = ap_per_class(*stats, plot=PLOTS, save_dir=save_dir, names=names)
         ap50, ap = ap[:, 0], ap.mean(1)  # AP@0.5, AP@0.5:0.95
         mp, mr, map50, map = p.mean(), r.mean(), ap50.mean(), ap.mean()
         nt = np.bincount(stats[3].astype(np.int64), minlength=tester.nc)  # number of targets per class
@@ -252,16 +254,16 @@ if __name__ == '__main__':
             print(pf % (names[c], seen, nt[c], p[i], r[i], ap50[i], ap[i]))
 
     # Print speeds
-    t = tuple(x / seen * 1E3 for x in (t0, t1, t0 + t1)) + (IMG_SIZE[0], IMG_SIZE[1], BATCH_SIZE)  # tuple
+    t = tuple(x / seen * 1E3 for x in (t0, t1, t0 + t1)) + (IMG_SIZE, IMG_SIZE, BATCH_SIZE)  # tuple
     print('Speed: %.1f/%.1f/%.1f ms inference/NMS/total per %gx%g image at batch-size %g' % t)
 
     if PLOTS:
-        confusion_matrix.plot(save_dir=Path(PROJECT), names=list(names.values()))
+        confusion_matrix.plot(save_dir=save_dir, names=list(names.values()))
 
     if SAVE_JSON and len(jdict):
         w = Path(WEIGHTS[0] if isinstance(WEIGHTS, list) else WEIGHTS).stem if WEIGHTS is not None else ''  # weights
         anno_json = './coco/annotations/instances_val2017.json'  # annotations json
-        pred_json = str(Path(PROJECT) / f"{w}_predictions.json")  # predictions json
+        pred_json = str(save_dir / f"{w}_predictions.json")  # predictions json
         print('\nEvaluating pycocotools mAP... saving %s...' % pred_json)
         with open(pred_json, 'w') as f:
             json.dump(jdict, f)
@@ -284,8 +286,8 @@ if __name__ == '__main__':
 
     # Return results
     tester.model.float()  # for training
-    s = f"\n{len(list(Path(PROJECT).glob('labels/*.txt')))} labels saved to {Path(PROJECT) / 'labels'}" if SAVE_TXT else ''
-    print(f"Results saved to {Path(PROJECT)}{s}")
+    s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if SAVE_TXT else ''
+    print(f"Results saved to {save_dir}{s}")
     maps = np.zeros(tester.nc) + map
     for i, c in enumerate(ap_class):
         maps[c] = ap[i]

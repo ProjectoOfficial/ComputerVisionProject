@@ -14,3 +14,4 @@ wandb
 runs
 best.pt
 yolov7_training.pt
+last.pt

@@ -267,7 +267,7 @@ def train(settings: dict):
         del ckpt, state_dict
 
     # Image sizes
-    gs = stride #max(int(model.stride.max()), stride)  # grid size (max stride)
+    gs = max(int(model.stride.max()), stride)  # grid size (max stride)
     nl = model.model[-1].nl  # number of detection layers (used for scaling hyp['obj'])
     imgsz, imgsz_test = [check_img_size(x, gs) for x in img_size]  # verify imgsz are gs-multiples
 
