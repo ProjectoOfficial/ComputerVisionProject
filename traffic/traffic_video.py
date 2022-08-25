@@ -1,16 +1,7 @@
-import os
-import sys
-
-current = os.path.dirname(os.path.realpath(__file__))  
-parent = os.path.dirname(current)
-sys.path.append(parent)
-
-from audioop import cross
-from genericpath import isdir, isfile
 import numpy as np
 import cv2 as cv
 
-import time
+import os
 import shutil
 from typing import Union, Tuple
 from pathlib import Path

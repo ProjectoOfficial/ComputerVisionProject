@@ -1,10 +1,11 @@
 #export OPENBLAS_CORETYPE=ARMV8
 import os
 import sys
+from pathlib import Path
 
 current = os.path.dirname(os.path.realpath(__file__))  
 parent = os.path.dirname(current)
-sys.path.append(parent)
+sys.path.append(str(Path(parent)))
 
 import torch
 import cv2
@@ -20,9 +21,8 @@ from Geometry import Geometry
 from Preprocessing import Preprocessing
 from Distance import Distance
 from traffic.traffic_video import Sign_Detector, Annotator
-from Models.YOLOv7.yolo_test import Test
 
-from pathlib import Path
+from Models.YOLOv7.yolo_test import Test
 from Models.YOLOv7.utils.general import increment_path, non_max_suppression, scale_coords, xyxy2xywh
 
 '''
@@ -211,20 +211,7 @@ if __name__ == "__main__":
 
                         distance = Distance().get_Distance(xywh)
                         cv2.rectangle(frame, (x, y), (x + w, y + h), (255,0,0), 2)
-                        cv2.putText(frame,"{:.2f} {} {:.2f}".format(conf, names[int(cls)], distance), (x + 5, y + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (255,0,255), 1)
-
-            # Object detector (using face detector while waiting for Object detection to be ready)
-            '''
-            face_detector = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
-            bounding_boxes = face_detector.detectMultiScale(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), 1.3, 5)
-            distances = Distance().get_Distances(bounding_boxes)
-            
-            for idx, (x, y, h, w) in enumerate(bounding_boxes):
-                if idx == len(distances):
-                    break
-                cv2.rectangle(frame, (x, y), (x + w, y + h), GREEN, 2)
-                cv2.putText(frame,"Distance: {:.2f}".format(distances[idx]), (x + 5, y + 20), fonts, 0.6, GREEN, 2)
-            '''
+                        cv2.putText(frame, "{:.2f} {} {:.2f}".format(conf, names[int(cls)], distance), (x + 5, y + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (255,0,255), 1)
 
             height, width, _ = frame.shape
             h = height // 4
@@ -232,8 +219,8 @@ if __name__ == "__main__":
             found, c, s, u = sd.detect(frame, h, w)
             if found and s != 0:
                 circles, speed, updates = c, s, u
-
                 bboxes = sd.extract_bb(circles, h, w)
+
                 if bboxes is not None:
                     frame = an.draw_bb(frame, bboxes)
 

@@ -1,5 +1,4 @@
 import argparse
-from calendar import EPOCH
 import logging
 import math
 import random
@@ -83,6 +82,7 @@ def train(settings: dict):
     single_cls = settings['SINGLE_CLS']
     stride = settings['STRIDE']
     sync_bn = settings['SYNC_BN']
+    use_coco_labels = ['USE_COCO_LABELS']
     upload_dataset = settings['UPLOAD_DATASET']
     weights = settings['WEIGHTS']
     workers = settings['WORKERS']
@@ -116,7 +116,8 @@ def train(settings: dict):
 
     data_size = (1280, 720)
     preprocess = Preprocessing((640, 640))
-    trainset = BDDDataset(data_dir, 'train', hyp, data_size, preprocessor=preprocess, mosaic=False, augment=False, rect=True, image_weights=image_weights, stride=stride, batch_size=batch_size)
+    trainset = BDDDataset(data_dir, 'train', hyp, data_size, preprocessor=preprocess, mosaic=False, augment=False, rect=True, image_weights=image_weights, stride=stride, 
+    batch_size=batch_size, concat_coco_names=use_coco_labels)
     
     nc = 1 if single_cls else len(trainset.names)
     names = ['item'] if single_cls and len(trainset.names) != 1 else trainset.names
@@ -513,7 +514,7 @@ if __name__ == '__main__':
     CACHE_IMAGES = False
     CFG = os.path.join(current, 'cfg', 'training', 'yolov7.yaml')
     DATA_DIR = os.path.join(current, 'data', 'bdd100k')
-    DEVICE = '0, 1' if MULTI_GPU else -1
+    DEVICE = '0, 1' if MULTI_GPU else '0'
     ENTITY = None
     EPOCHS = 2
     EVOLVE = False
@@ -538,14 +539,15 @@ if __name__ == '__main__':
     STRIDE = 32
     SYNC_BN = False # True with multiple GPUs
     UPLOAD_DATASET = False
+    USE_COCO_LABELS = False
     WEIGHTS = os.path.join(current, 'yolov7_training.pt')
     WORKERS = 4 if MULTI_GPU else 6
 
     settings = {'ADAM': ADAM, 'ARTIFACT_ALIAS': ARTIFACT_ALIAS, 'BATCH_SIZE': BATCH_SIZE, 'BBOX_INTERVAL':BBOX_INTERVAL, 'BUCKET': BUCKET, 'CACHE_IMAGES': CACHE_IMAGES, 
     'CFG': CFG, 'DATA_DIR': DATA_DIR, 'DEVICE': DEVICE, 'ENTITY': ENTITY, 'EPOCHS': EPOCHS, 'EVOLVE': EVOLVE, 'EXIST_OK': EXIST_OK, 'HYP': HYP, 'IMAGE_WEIGHTS': IMAGE_WEIGHTS,
     'IMG_SIZE': IMG_SIZE, 'LABEL_SMOOTHING': LABEL_SMOOTHING, 'LINEAR_LR': LINEAR_LR, 'LOCAL_RANK': LOCAL_RANK, 'MULTI_SCALE': MULTI_SCALE, 'NAME': NAME, 'NOAUTOANCHOR': NOAUTOANCHOR,
-    'NO_SAVE': NO_SAVE, 'NO_TEST': NO_TEST, 'PROJECT': PROJECT, 'QUAD': QUAD, 'RECT': RECT, 'RESUME': RESUME, 'SAVE_PERIOD': SAVE_PERIOD, 'SINGLE_CLS': SINGLE_CLS,
-    'SYNC_BN': SYNC_BN, 'UPLOAD_DATASET': UPLOAD_DATASET, 'WEIGHTS': WEIGHTS, 'WORKERS': WORKERS, 'STRIDE': STRIDE}
+    'NO_SAVE': NO_SAVE, 'NO_TEST': NO_TEST, 'PROJECT': PROJECT, 'QUAD': QUAD, 'RECT': RECT, 'RESUME': RESUME, 'SAVE_PERIOD': SAVE_PERIOD, 'SINGLE_CLS': SINGLE_CLS, 'STRIDE': STRIDE,
+    'SYNC_BN': SYNC_BN, 'UPLOAD_DATASET': UPLOAD_DATASET, 'USE_COCO_LABELS': USE_COCO_LABELS, 'WEIGHTS': WEIGHTS, 'WORKERS': WORKERS, }
 
     # Set DDP variables
     world_size = int(os.environ['WORLD_SIZE']) if 'WORLD_SIZE' in os.environ else 1

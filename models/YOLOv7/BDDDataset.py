@@ -1,18 +1,16 @@
-from operator import concat
 import torch
 import os
 import numpy as np
 from pathlib import Path
 from PIL import Image
 from torch.utils.data import Dataset
-from typing import List, Dict, Set, Union
-from torchvision import transforms
+from typing import List, Set, Union
 from tqdm import tqdm
 import json
 import yaml
 import random
 from utils.datasets import load_mosaic, load_mosaic9, load_image, letterbox, segments2boxes, exif_size
-from utils.general import check_file, xyxy2xyxyn, xyxy2xywh, xywhn2xyxy, xywh2xyxy, xyxy2xywhn
+from utils.general import check_file, xyxy2xyxyn, xywhn2xyxy, xyxy2xywhn
 
 import argparse
 import sys
