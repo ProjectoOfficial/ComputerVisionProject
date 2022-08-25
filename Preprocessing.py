@@ -11,8 +11,8 @@ class Preprocessing():
     def __init__(self, size: tuple=(1280, 1280)):
         self.im_size = size
 
-        self.crop_transform = A.Compose([
-            A.Crop(0, 0, size[0], size[1]),
+        self.resize_transform = A.Compose([
+            A.Resize(size[0], size[1], p=1, always_apply=True),
         ], bbox_params=A.BboxParams(format='pascal_voc', label_fields=['class_labels']))
 
         self.train_trainsform = A.Compose([
@@ -21,10 +21,10 @@ class Preprocessing():
             A.RandomRain(p=0.1),
             A.MotionBlur(p=0.5),
             A.HorizontalFlip(p=0.5),
-            A.RandomBrightnessContrast(p=0.3),
-            A.ColorJitter(p=0.2),
-            A.RGBShift(r_shift_limit=30, g_shift_limit=30, b_shift_limit=30, p=0.3),
-        ], bbox_params=A.BboxParams(format='pascal_voc', label_fields=['class_labels']))
+            A.RandomBrightnessContrast(p=0.2),
+            A.ColorJitter(p=0.1),
+            A.RGBShift(r_shift_limit=30, g_shift_limit=30, b_shift_limit=30, p=0.2),
+        ], bbox_params=A.BboxParams(format='pascal_voc', min_area=10, label_fields=['class_labels']))
 
     @staticmethod
     def GaussianBlur(frame: np.ndarray, sigma:float):
@@ -40,11 +40,12 @@ class Preprocessing():
         from different sources and and modifies them so that the output images all have the same structure
         ''' 
         
-        if frame.shape != (1280, 1280, 3):
+        if frame.shape != (*self.im_size, 3):
             if frame.size > np.ndarray((*self.im_size, 3), dtype=frame.dtype).size:
                 class_labels = labels[:, 0]
                 boxes = labels[:, 1:]
-                transformed = self.crop_transform(image=frame, bboxes=boxes, class_labels=class_labels)
+                frame, labels = self.pad_image(frame, labels)
+                transformed = self.resize_transform(image=frame, bboxes=boxes, class_labels=class_labels)
 
                 frame = transformed['image']
                 transformed_bboxes = np.array(transformed['bboxes'])
@@ -72,9 +73,13 @@ class Preprocessing():
         return frame, labels
 
     def pad_image(self, img: np.ndarray, labels: np.ndarray=None):
-        im = np.zeros((*self.im_size, 3), dtype=np.uint8)
-        start_w = (self.im_size[0] - img.shape[0]) // 2
-        start_h = (self.im_size[1] - img.shape[1]) // 2
+        dim_max = max(img.shape)
+
+        im = np.zeros((dim_max, dim_max, 3), dtype=np.uint8)
+
+        start_w = (dim_max - img.shape[0]) // 2
+        start_h = (dim_max - img.shape[1]) // 2
+
         im[start_w: start_w + img.shape[0], start_h: start_h + img.shape[1], :] = img
         if labels is not None:
             labels[:, 1] += start_h

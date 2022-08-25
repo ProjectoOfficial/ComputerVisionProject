@@ -72,12 +72,6 @@ def test(data,
     half = device.type != 'cpu' and half_precision  # half precision only supported on CUDA
     if half:
         model.half()
-    
-    if is_coco:
-        dir = str(Path(__file__).resolve().parent)
-        data['train'] = os.path.abspath(os.path.join(dir, data['train']))
-        data['val'] = os.path.abspath(os.path.join(dir, data['val']))
-        data['test'] = os.path.abspath(os.path.join(dir, data['test']))
 
     # Configure
     model.eval()
@@ -86,9 +80,15 @@ def test(data,
         with open(data) as f:
             data = yaml.load(f, Loader=yaml.SafeLoader)
     check_dataset(data)  # check
-    nc = 1 if single_cls else int(data['nc'])  # number of classes
+    nc = 1 if single_cls else int(len(model.names))  # number of classes
     iouv = torch.linspace(0.5, 0.95, 10).to(device)  # iou vector for mAP@0.5:0.95
     niou = iouv.numel()
+
+    if is_coco:
+        dir = str(Path(__file__).resolve().parent)
+        data['train'] = os.path.abspath(os.path.join(dir, data['train']))
+        data['val'] = os.path.abspath(os.path.join(dir, data['val']))
+        data['test'] = os.path.abspath(os.path.join(dir, data['test']))
 
     # Logging
     log_imgs = 0
@@ -179,10 +179,11 @@ def test(data,
                 box = xyxy2xywh(predn[:, :4])  # xywh
                 box[:, :2] -= box[:, 2:] / 2  # xy center to top-left corner
                 for p, b in zip(pred.tolist(), box.tolist()):
-                    jdict.append({'image_id': image_id,
-                                  'category_id': coco91class[int(p[5])] if is_coco else int(p[5]),
-                                  'bbox': [round(x, 3) for x in b],
-                                  'score': round(p[4], 5)})
+                    if len(p) == 5:
+                        jdict.append({'image_id': image_id,
+                                    'category_id': coco91class[int(p[5])] if is_coco else int(p[5]),
+                                    'bbox': [round(x, 3) for x in b],
+                                    'score': round(p[4], 5)})
 
             # Assign all predictions as incorrect
             correct = torch.zeros(pred.shape[0], niou, dtype=torch.bool, device=device)
@@ -264,7 +265,7 @@ def test(data,
     if save_json and len(jdict):
         w = Path(weights[0] if isinstance(weights, list) else weights).stem if weights is not None else ''  # weights
         anno_json = './coco/annotations/instances_val2017.json'  # annotations json
-        pred_json = str(save_dir / f"{w}_predictions.json")  # predictions json
+        pred_json = str(Path(save_dir) / f"{w}_predictions.json")  # predictions json
         print('\nEvaluating pycocotools mAP... saving %s...' % pred_json)
         with open(pred_json, 'w') as f:
             json.dump(jdict, f)
@@ -297,7 +298,7 @@ def test(data,
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog='test.py')
-    parser.add_argument('--weights', nargs='+', type=str, default=os.path.join(current, 'yolov7.pt'), help='model.pt path(s)')
+    parser.add_argument('--weights', nargs='+', type=str, default=os.path.join(current, 'best.pt'), help='model.pt path(s)')
     parser.add_argument('--data', type=str, default=os.path.join(current, 'data', 'coco.yaml'), help='*.data path')
     parser.add_argument('--batch-size', type=int, default=2, help='size of each image batch')
     parser.add_argument('--img-size', type=int, default=640, help='inference size (pixels)')

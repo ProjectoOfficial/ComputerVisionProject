@@ -13,3 +13,4 @@ exp
 wandb
 runs
 best.pt
+yolov7_training.pt

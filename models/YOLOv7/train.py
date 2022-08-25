@@ -535,10 +535,10 @@ sys.path.append(parent)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--weights', type=str, default=os.path.join(current, 'yolov7.pt'), help='initial weights path')
+    parser.add_argument('--weights', type=str, default=os.path.join(current, 'yolov7_training.pt'), help='initial weights path')
     parser.add_argument('--cfg', type=str, default=os.path.join(current,'cfg', 'training', 'yolov7.yaml'), help='model.yaml path')
     parser.add_argument('--data', type=str, default=os.path.join(current,'data', 'coco.yaml'), help='data.yaml path')
-    parser.add_argument('--hyp', type=str, default=os.path.join(current,'data', 'hyp.scratch.p5.yaml'), help='hyperparameters path')
+    parser.add_argument('--hyp', type=str, default=os.path.join(current,'data', 'hyp.scratch.custom.yaml'), help='hyperparameters path')
     parser.add_argument('--epochs', type=int, default=300)
     parser.add_argument('--batch-size', type=int, default=1, help='total batch size for all GPUs')
     parser.add_argument('--img-size', nargs='+', type=int, default=[640, 640], help='[train, test] image sizes')

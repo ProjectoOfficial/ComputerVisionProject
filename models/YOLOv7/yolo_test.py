@@ -98,7 +98,7 @@ if __name__ == '__main__':
     STRIDE = 20
     TASK = 'val'
     VERBOSE = True
-    WEIGHTS = os.path.join(current, 'best.pt')
+    WEIGHTS = os.path.join(current, 'yolov7_training.pt')
     WORKERS = 6
     
     if isinstance(DATA_DIR, str):
@@ -106,7 +106,7 @@ if __name__ == '__main__':
     
     if not IS_COCO:
         preprocessor = Preprocessing()
-        valset = BDDDataset(WEIGHTS, TASK, HYP, IMG_SIZE, preprocessor=preprocessor ,mosaic=False, augment=False, rect=True, image_weights=IMAGE_WEIGHTS, stride=STRIDE, batch_size=BATCH_SIZE) 
+        valset = BDDDataset(DATA_DIR, TASK, HYP, IMG_SIZE, preprocessor=preprocessor ,mosaic=False, augment=False, rect=True, image_weights=IMAGE_WEIGHTS, stride=STRIDE, batch_size=BATCH_SIZE) 
         valloader = torch.utils.data.DataLoader(valset, BATCH_SIZE, collate_fn=BDDDataset.collate_fn, num_workers=WORKERS)
     else:
         with open(DATA_DIR) as f:

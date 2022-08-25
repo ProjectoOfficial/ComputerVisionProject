@@ -113,15 +113,14 @@ def train(settings: dict):
     init_seeds(2 + rank)
 
     # TrainSet
-    preprocess = Preprocessing()
-    trainset = BDDDataset(data_dir, 'train', hyp, img_size, preprocessor=preprocess ,mosaic=False, augment=False, rect=True, image_weights=image_weights, stride=stride, batch_size=batch_size)
+
+    data_size = (1280, 720)
+    preprocess = Preprocessing((640, 640))
+    trainset = BDDDataset(data_dir, 'train', hyp, data_size, preprocessor=preprocess, mosaic=False, augment=False, rect=True, image_weights=image_weights, stride=stride, batch_size=batch_size)
     
     nc = 1 if single_cls else len(trainset.names)
     names = ['item'] if single_cls and len(trainset.names) != 1 else trainset.names
     assert len(names) == nc, '%g names found for nc=%g dataset in %s' % (len(names), nc, data_dir)  # check
-
-    # TestSet
-    testset = BDDDataset(data_dir, 'val', hyp, img_size, preprocessor=preprocess ,mosaic=False, augment=False, rect=True, image_weights=image_weights, stride=stride, batch_size=batch_size)
 
     # Model
     pretrained = weights.endswith('.pt')
@@ -290,8 +289,6 @@ def train(settings: dict):
 
     # Process 0
     if rank in [-1, 0]:
-        testloader = torch.utils.data.DataLoader(testset, batch_size)
-
         if not resume:
             labels = np.concatenate(trainset.labels, 0)
             c = torch.tensor(labels[:, 0])  # classes
@@ -507,25 +504,25 @@ def train(settings: dict):
 if __name__ == '__main__':
     ADAM = True
     ARTIFACT_ALIAS = 'latest'
-    BATCH_SIZE = 2
+    BATCH_SIZE = 8
     BBOX_INTERVAL = -1
     BUCKET = ''
     CACHE_IMAGES = False
     CFG = os.path.join(current, 'cfg', 'training', 'yolov7.yaml')
     DATA_DIR = os.path.join(current, 'data', 'bdd100k')
-    DEVICE = 'cuda'
+    DEVICE = '0'
     ENTITY = None
     EPOCHS = 2
     EVOLVE = False
     EXIST_OK = False
-    HYP = os.path.join(current, 'data', 'hyp.scratch.p5.yaml')
+    HYP = os.path.join(current, 'data', 'hyp.scratch.custom.yaml')
     IMAGE_WEIGHTS = False
-    IMG_SIZE = (1280, 720)
+    IMG_SIZE = (640, 640)
     LABEL_SMOOTHING = 0.0
     LINEAR_LR = False
     LOCAL_RANK = -1
     MULTI_SCALE = False
-    NAME = 'exp'
+    NAME = 'custom'
     NOAUTOANCHOR = False
     NO_SAVE = False
     NO_TEST = False
@@ -535,10 +532,10 @@ if __name__ == '__main__':
     RESUME = False
     SAVE_PERIOD = 1
     SINGLE_CLS = False
-    STRIDE = 20
-    SYNC_BN = False
+    STRIDE = 32
+    SYNC_BN = False # True with multiple GPUs
     UPLOAD_DATASET = False
-    WEIGHTS = os.path.join(current, 'yolov7.pt')
+    WEIGHTS = os.path.join(current, 'yolov7_training.pt')
     WORKERS = 6
 
     settings = {'ADAM': ADAM, 'ARTIFACT_ALIAS': ARTIFACT_ALIAS, 'BATCH_SIZE': BATCH_SIZE, 'BBOX_INTERVAL':BBOX_INTERVAL, 'BUCKET': BUCKET, 'CACHE_IMAGES': CACHE_IMAGES, 

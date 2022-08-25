@@ -259,23 +259,27 @@ class BDDDataset(Dataset):
 
 if __name__ == "__main__":
     DATA_DIR = os.path.join(current, 'data', 'bdd100k')
-    HYP = os.path.join(current, 'data', 'hyp.scratch.p5.yaml')
+    HYP = os.path.join(current, 'data', 'hyp.scratch.custom.yaml')
+    TASK = 'val'
+
     hyp = check_file(HYP)
     with open(HYP) as f:
         hyp = yaml.load(f, Loader=yaml.SafeLoader)  # load hyps
 
-    preprocess = Preprocessing(size=(1280, 1280))
-    trainset = BDDDataset(data_dir=DATA_DIR, flag='train', hyp=hyp, shape=(720, 1280), preprocessor=preprocess, mosaic=False, augment=False, 
+    size = (1280, 1280)
+    preprocess = Preprocessing(size=size)
+
+    dataset = BDDDataset(data_dir=DATA_DIR, flag=TASK, hyp=hyp, shape=(720, 1280), preprocessor=preprocess, mosaic=False, augment=False, 
     rect=True, image_weights=False, stride=32, batch_size=1)
 
-    it = iter(trainset)
+    it = iter(dataset)
     for i in range(10):
         img, labels, file, shape = next(it)
         img = Preprocessing.to_np_frame(img.cpu().detach().numpy())
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         
         for label in labels.cpu().detach().numpy():
-            cat = trainset.names[int(label[1])]
+            cat = dataset.names[int(label[1])]
             label[2:] = xywhn2xyxy(label[2:].reshape((-1, 4)), w=max(img.shape[:2]), h=min(img.shape[:2]))
             x, y, x2, y2 = label[2:].astype('uint32')
 
@@ -283,7 +287,10 @@ if __name__ == "__main__":
             cv2.rectangle(img, (x, y), (x2, y2), (255,0,0), 2)
             cv2.putText(img,"{} - {}".format(cat, int(label[1])), (x + 5, y + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (255,0,255), 1)
 
-        cv2.imshow("frame", cv2.resize(img, (1080, 1080)))
+        if np.ndarray((*size, 3), dtype=img.dtype).size < img.size:
+            img = cv2.resize(img, (1000, 1000))
+
+        cv2.imshow("frame", img)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
         print("\n")
