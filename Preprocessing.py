@@ -34,12 +34,15 @@ class Preprocessing():
     def to_np_frame(cls, frame: np.ndarray):
         return np.swapaxes(np.swapaxes(np.uint8(frame), 0, 2), 0, 1)
 
-    def Transform_base(self, frame: np.ndarray, labels: np.ndarray = np.zeros((5, 5))):
+    def Transform_base(self, frame: np.ndarray, labels: np.ndarray = np.array([])):
         '''
         Transform_base contains image transformation used both on camera and dataset images. It takes images coming
         from different sources and and modifies them so that the output images all have the same structure
         ''' 
-        
+
+        if labels.size == 0:
+            labels = np.array([[0,1,1,2,2],[0,1,1,2,2]]).reshape((-1, 5)) #dummy array
+
         if frame.shape != (*self.im_size, 3):
             if frame.size > np.ndarray((*self.im_size, 3), dtype=frame.dtype).size:
                 class_labels = labels[:, 0]

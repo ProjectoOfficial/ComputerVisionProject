@@ -11,6 +11,7 @@ import sys
 
 current = os.path.dirname(os.path.realpath(__file__))  
 parent = os.path.dirname(current)
+sys.path.append(current)
 sys.path.append(parent)
 
 from BDDDataset import BDDDataset
@@ -45,7 +46,7 @@ class Test():
         self.device = select_device(device, batch_size=batch_size)
         
         # Load model
-        self.model = attempt_load(weigths, map_location=self.device)  # load FP32 model
+        self.model = attempt_load(self.weigths, map_location=self.device)  # load FP32 model
         gs = max(int(self.model.stride.max()), 32)  # grid size (max stride)
         imgsz = check_img_size(imgsz, s=gs)  # check img_size
 
@@ -77,7 +78,7 @@ class Test():
 if __name__ == '__main__':
     DATA_DIR = os.path.join(current, 'data', 'bdd100k')
     DEVICE = '0'
-    BATCH_SIZE = 8
+    BATCH_SIZE = 32
     COMPUTE_LOSS = None
     CONF_THRES= 0.001
     IMG_SIZE = 640
@@ -92,7 +93,7 @@ if __name__ == '__main__':
     SAVE_HYBRID = False
     SAVE_JSON = True
     SAVE_TXT = False | SAVE_HYBRID
-    STRIDE = 20
+    STRIDE = 32
     TASK = 'val'
     VERBOSE = True
     WEIGHTS = os.path.join(current, 'last.pt')
@@ -108,7 +109,8 @@ if __name__ == '__main__':
     if not IS_COCO:
         data_size = (1280, 720)
         preprocessor = Preprocessing((IMG_SIZE, IMG_SIZE))
-        valset = BDDDataset(DATA_DIR, TASK, HYP, data_size, preprocessor=preprocessor ,mosaic=False, augment=False, rect=True, image_weights=IMAGE_WEIGHTS, stride=STRIDE, batch_size=BATCH_SIZE) 
+        valset = BDDDataset(DATA_DIR, TASK, HYP, data_size, preprocessor=preprocessor, mosaic=False, augment=False, rect=True, image_weights=IMAGE_WEIGHTS, stride=STRIDE, 
+        batch_size=BATCH_SIZE, concat_coco_names=True) 
         valloader = torch.utils.data.DataLoader(valset, BATCH_SIZE, collate_fn=BDDDataset.collate_fn, num_workers=WORKERS)
     else:
         with open(DATA_DIR) as f:
@@ -124,7 +126,7 @@ if __name__ == '__main__':
     seen = 0
     confusion_matrix = ConfusionMatrix(nc=tester.nc)
     coco91class = coco80_to_coco91_class()
-    names = tester.names
+    names =  {k: v for k, v in enumerate(tester.model.names if hasattr(tester.model, 'names') else tester.model.module.names)}
 
     iouv = torch.linspace(0.5, 0.95, 10).to(tester.device)  # iou vector for mAP@0.5:0.95
     niou = iouv.numel()

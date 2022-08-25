@@ -1,3 +1,4 @@
+from operator import concat
 import torch
 import os
 import numpy as np
@@ -13,6 +14,7 @@ import random
 from utils.datasets import load_mosaic, load_mosaic9, load_image, letterbox, segments2boxes, exif_size
 from utils.general import check_file, xyxy2xyxyn, xyxy2xywh, xywhn2xyxy, xywh2xyxy, xyxy2xywhn
 
+import argparse
 import sys
 import cv2
 current = os.path.dirname(os.path.realpath(__file__))  
@@ -24,11 +26,10 @@ from Preprocessing import Preprocessing
 
 class BDDDataset(Dataset):
     def __init__(self, data_dir: str, flag: str, hyp: dict, shape: tuple=(360,480), preprocessor: Preprocessing=None ,mosaic: bool=False, augment: bool=False, rect: bool=False, image_weights:bool =False,
-     stride: int=32, batch_size: int=16, pad: float=0.0):
-
+     stride: int=32, batch_size: int=16, pad: float=0.0, concat_coco_names: bool = False):
         self.data_dir = data_dir
         self.flag = flag
-        self.base_shape = shape
+        self.base_shape = (720, 1280)
         self.hyp = hyp
 
         self.preprocessor = preprocessor
@@ -37,21 +38,26 @@ class BDDDataset(Dataset):
         self.augment = augment
         self.image_weights = image_weights
         self.rect = False if image_weights else rect
-        self.img_size = max(shape)
+        self.img_size = max(self.base_shape)
         self.mosaic_border = [-self.img_size // 2, -self.img_size // 2]
         self.stride = stride
+        self.concat_coco_names = concat_coco_names
 
-        self.names = ('person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light', \
-         'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow', \
-         'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee', \
-         'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard', \
-         'tennis racket', 'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple', \
-         'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch', \
-         'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', \
-         'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', \
-         'hair drier', 'toothbrush', 'other person', 'other vehicle', 'rider', 'traffic sign', 'trailer' )
+        self.cache_name = flag
 
-        self.bddnames = ('truck', 'other person', 'motorcycle', 'bus', 'other vehicle', 'rider', 'traffic sign', 'pedestrian', 'bicycle', 'traffic light', 'train', 'car', 'trailer')
+        if self.concat_coco_names:
+            self.names = ('person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light', \
+            'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow', \
+            'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee', \
+            'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard', \
+            'tennis racket', 'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple', \
+            'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch', \
+            'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', \
+            'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', \
+            'hair drier', 'toothbrush', 'other person', 'other vehicle', 'rider', 'traffic sign', 'trailer' )
+            self.cache_name = self.cache_name + '_' + 'coco'
+        else:
+            self.names = ('truck', 'other person', 'motorcycle', 'bus', 'other vehicle', 'rider', 'traffic sign', 'pedestrian', 'bicycle', 'traffic light', 'train', 'car', 'trailer')
 
         if flag == 'train':
             self.img_dir = os.path.join(data_dir, "images", '100k', 'train')
@@ -74,7 +80,7 @@ class BDDDataset(Dataset):
 
             # Check cached labels data
             cache = None
-            cache_path = (Path(os.path.join(self.data_dir, flag))).with_suffix('.cache')  # cached labels
+            cache_path = (Path(os.path.join(self.data_dir, self.cache_name))).with_suffix('.cache')  # cached labels
             if cache_path.is_file():
                 cache = torch.load(cache_path)
                 cache.pop('version')
@@ -185,10 +191,7 @@ class BDDDataset(Dataset):
         return len(self.img_files)
 
     def num_classes(self):
-        if self.flag != 'test':
-            return len(self.names)
-        else:
-            return 0
+        return len(self.names)
 
     def load_labels(self, cache_path: Path) -> Union[List, List, Set, List]:
         '''
@@ -223,7 +226,7 @@ class BDDDataset(Dataset):
             if 'labels' in self.label_data[name]:
                 for element in self.label_data[name]['labels']:
                     cat = element['category']
-                    if cat == 'pedestrian':
+                    if cat == 'pedestrian' and self.concat_coco_names:
                         cat = 'person'
                     bbox = np.array([self.names.index(cat), element['box2d']['x1'], element['box2d']['y1'], element['box2d']['x2'] , element['box2d']['y2']])
                     l = np.vstack([l, bbox]) if l.size else bbox
@@ -258,6 +261,18 @@ class BDDDataset(Dataset):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(prog='test.py')
+    parser.add_argument('--datadir', type=str, default=os.path.join(current, 'data', 'bdd100k'), help='*.data path')
+    parser.add_argument('--hyp', type=str, default=os.path.join(current,'data', 'hyp.scratch.custom.yaml'), help='hyperparameters path')
+    parser.add_argument('--task', default='val', help='train, val, test')
+    parser.add_argument('--batch-size', type=int, default=2, help='size of each image batch')
+    opt = parser.parse_args()
+
+    assert opt.task in ['train', 'val','test'], 'invalid task'
+    assert os.path.isdir(opt.datadir), 'data directory does not exists'
+    assert os.path.exists(opt.hyp), 'hyperparameters file does not exists'
+    assert opt.batch_size > 0, 'batch size should be a positive int'
+
     DATA_DIR = os.path.join(current, 'data', 'bdd100k')
     HYP = os.path.join(current, 'data', 'hyp.scratch.custom.yaml')
     TASK = 'val'
@@ -270,7 +285,7 @@ if __name__ == "__main__":
     preprocess = Preprocessing(size=size)
 
     dataset = BDDDataset(data_dir=DATA_DIR, flag=TASK, hyp=hyp, shape=(720, 1280), preprocessor=preprocess, mosaic=False, augment=False, 
-    rect=True, image_weights=False, stride=32, batch_size=1)
+    rect=True, image_weights=False, stride=32, batch_size=1, concat_coco_names=True)
 
     it = iter(dataset)
     for i in range(10):

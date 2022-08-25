@@ -6,6 +6,7 @@ current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
 sys.path.append(parent)
 
+import torch
 import cv2
 import time
 import numpy as np
@@ -19,6 +20,10 @@ from Geometry import Geometry
 from Preprocessing import Preprocessing
 from Distance import Distance
 from traffic.traffic_video import Sign_Detector, Annotator
+from Models.YOLOv7.yolo_test import Test
+
+from pathlib import Path
+from Models.YOLOv7.utils.general import increment_path, non_max_suppression, scale_coords, xyxy2xywh
 
 '''
 INSTRUCTION:
@@ -41,6 +46,17 @@ FILENAME = "out"
 RESOLUTION = (1280, 720)
 SAVE_SIGN = True
 
+# Yolo parameters
+BATCH_SIZE = 32
+CONF_THRES= 0.001
+DEVICE = '0'
+IOU_THRES= 0.65  # for NMS
+NAME = 'camera'
+PROJECT = os.path.join(parent, 'Models', 'YOLOv7', 'runs', 'test') # save dir
+SAVE_HYBRID = False
+SAVE_TXT = False | SAVE_HYBRID
+WEIGHTS = os.path.join(parent, 'Models', 'YOLOv7', 'yolov7.pt')
+
 # Colors
 GREEN = (0, 255, 0)
 RED = (0, 0, 255)
@@ -60,9 +76,12 @@ def on_press(key):
 logging.getLogger("imported_module").setLevel(logging.ERROR)
 listener = Listener(on_press=on_press)
 
-preprocessor = Preprocessing((1280, 1280))
+preprocessor = Preprocessing((640, 640))
 
 if __name__ == "__main__":
+    save_dir = Path(increment_path(Path(PROJECT) / NAME, exist_ok=False))  # increment run
+    (save_dir / 'labels' if SAVE_TXT else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
+
     if not os.path.isdir(os.path.join(current, "signs")):
         os.makedirs(os.path.join(current, "signs"))
 
@@ -91,6 +110,10 @@ if __name__ == "__main__":
         calibrated, mtx, dist, rvecs, tvecs = geometry.get_calibration()
         camera.calibrate(calibrated, mtx, dist, rvecs, tvecs)
 
+    tester = Test(WEIGHTS, BATCH_SIZE, DEVICE, save_dir)
+    names = tester.model.names
+
+    # Main infinite loop
     while True:
         frame = camera.get_frame() 
         if frame is None:
@@ -171,6 +194,24 @@ if __name__ == "__main__":
 
             if PRESSED_KEY != '':
                 PRESSED_KEY = ''
+
+            img, _ = preprocessor.Transform_base(frame)
+            img = torch.from_numpy(img).permute(2, 0, 1).unsqueeze(dim=0)
+            out, train_out = tester.predict(img)
+            out = non_max_suppression(out, conf_thres=CONF_THRES, iou_thres=IOU_THRES, multi_label=True)
+            for si, pred in enumerate(out):
+                predn = pred.clone()
+                ratio = ((1.0, 1.0), (0.0, 0.0))
+                scale_coords(img.shape[1:], predn[:, :4], ratio[0], ratio[1])  # native-space pred
+
+                for *xyxy, conf, cls in predn.tolist():
+                    if conf > 0.4:
+                        xywh = (xyxy2xywh(torch.tensor([ int(x) for x in xyxy ]).view(1, 4))).view(-1).tolist() # xywh
+                        x, y, w, h = xywh
+
+                        distance = Distance().get_Distance(xywh)
+                        cv2.rectangle(frame, (x, y), (x + w, y + h), (255,0,0), 2)
+                        cv2.putText(frame,"{:.2f} {} {:.2f}".format(conf, names[int(cls)], distance), (x + 5, y + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (255,0,255), 1)
 
             # Object detector (using face detector while waiting for Object detection to be ready)
             '''

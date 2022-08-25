@@ -1,14 +1,20 @@
+import os
+import sys
+
+current = os.path.dirname(os.path.realpath(__file__))  
+parent = os.path.dirname(current)
+sys.path.append(parent)
+
 from audioop import cross
 from genericpath import isdir, isfile
 import numpy as np
 import cv2 as cv
 
-import os
 import time
 import shutil
 from typing import Union, Tuple
 from pathlib import Path
-from models.YOLOv7.utils.general import xyxy2xywhn
+from Models.YOLOv7.utils.general import xyxy2xywhn
 
 ROOT_DIR = Path(os.path.dirname(os.path.abspath(__file__))) # This is your Project Root
 RESULTS_DIR = ROOT_DIR / 'detected_circles'

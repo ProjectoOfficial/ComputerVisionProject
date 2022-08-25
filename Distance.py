@@ -32,7 +32,7 @@ class Distance(object):
     def __init__(self):
         self.face_detector = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
 
-    def get_Distances(self, bounding_boxes: np.ndarray) -> List[int]:
+    def get_Distance(self, bbox: np.ndarray) -> List[int]:
         ref_image = cv2.imread(r"Camera/Ref_image.png")
 
         gray_image = cv2.cvtColor(ref_image, cv2.COLOR_BGR2GRAY)
@@ -40,16 +40,13 @@ class Distance(object):
         (_, _, _, ref_image_width) = face.ravel()
         Focal_length_found = self.Focal_Length_Finder(Known_distance, Known_width, ref_image_width)
 
-        distances = []
-        for bbox in bounding_boxes:
-            (_, _, _, frame_obj_width) = bbox
+        distance = 0
+        (_, _, _, frame_obj_width) = bbox
 
-            if frame_obj_width != 0:
-                distances.append(self.Distance_finder(Focal_length_found, Known_width, frame_obj_width))
-            else:
-                distances.append(0)
+        if frame_obj_width != 0:
+            distance = self.Distance_finder(Focal_length_found, Known_width, frame_obj_width)
 
-        return distances
+        return distance
 
     # focal length finder function
     def Focal_Length_Finder(self, measured_distance, real_width, width_in_rf_image) -> float:

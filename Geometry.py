@@ -61,6 +61,9 @@ class Geometry(object):
                 cv2.waitKey(500)
                 
                 cv2.destroyAllWindows()
+        
+        if gray is None:
+            return False, None, None, None, None
             
         self.calibrated, self.mtx, self.dist, self.rvecs, self.tvecs = cv2.calibrateCamera(self.object_points, self.image_points, gray.shape[::-1], None, None)
         
