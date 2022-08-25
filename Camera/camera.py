@@ -5,12 +5,11 @@ from pathlib import Path
 
 current = os.path.dirname(os.path.realpath(__file__))  
 parent = os.path.dirname(current)
-sys.path.append(str(Path(parent)))
+sys.path.append(parent)
 
 import torch
 import cv2
 import time
-import numpy as np
 from datetime import datetime
 
 from pynput.keyboard import Listener
@@ -55,7 +54,7 @@ NAME = 'camera'
 PROJECT = os.path.join(parent, 'Models', 'YOLOv7', 'runs', 'test') # save dir
 SAVE_HYBRID = False
 SAVE_TXT = False | SAVE_HYBRID
-WEIGHTS = os.path.join(parent, 'Models', 'YOLOv7', 'yolov7.pt')
+WEIGHTS = os.path.join(parent, 'Models', 'YOLOv7', 'last.pt')
 
 # Colors
 GREEN = (0, 255, 0)
@@ -91,7 +90,7 @@ if __name__ == "__main__":
     if not os.path.isdir(os.path.join(current, "Recordings")):
         os.makedirs(os.path.join(current, "Recordings"))
 
-    camera = RTCamera(CAMERA_DEVICE, fps=30, resolution=RESOLUTION, cuda=True, auto_exposure=False, rotation=cv2.ROTATE_90_COUNTERCLOCKWISE)
+    camera = RTCamera(CAMERA_DEVICE, fps=30, resolution=RESOLUTION, cuda=True, auto_exposure=False, )
     camera.start()
 
     start_fps = time.time()
@@ -201,16 +200,17 @@ if __name__ == "__main__":
             out = non_max_suppression(out, conf_thres=CONF_THRES, iou_thres=IOU_THRES, multi_label=True)
             for si, pred in enumerate(out):
                 predn = pred.clone()
-                ratio = ((1.0, 1.0), (0.0, 0.0))
-                scale_coords(img.shape[1:], predn[:, :4], ratio[0], ratio[1])  # native-space pred
+                ratio = ((1, 1), (0, 0))
+                scale_coords(img.shape[1:], predn[:, :4], (640, 640), ratio)  # native-space pred
 
                 for *xyxy, conf, cls in predn.tolist():
-                    if conf > 0.4:
-                        xywh = (xyxy2xywh(torch.tensor([ int(x) for x in xyxy ]).view(1, 4))).view(-1).tolist() # xywh
+                    if conf > 0.7:
+                        xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4))).view(-1) # xywh
+                        xywh = [ int(x) for x in xywh ]
                         x, y, w, h = xywh
 
                         distance = Distance().get_Distance(xywh)
-                        cv2.rectangle(frame, (x, y), (x + w, y + h), (255,0,0), 2)
+                        cv2.rectangle(frame, (x, y), (x + 2*w, y + 2*h), (255,0,0), 2)
                         cv2.putText(frame, "{:.2f} {} {:.2f}".format(conf, names[int(cls)], distance), (x + 5, y + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (255,0,255), 1)
 
             height, width, _ = frame.shape
@@ -219,10 +219,9 @@ if __name__ == "__main__":
             found, c, s, u = sd.detect(frame, h, w)
             if found and s != 0:
                 circles, speed, updates = c, s, u
-                bboxes = sd.extract_bb(circles, h, w)
 
-                if bboxes is not None:
-                    frame = an.draw_bb(frame, bboxes)
+                if circles is not None:
+                    frame = an.draw_circles(frame, circles, (height, width), (height, width), (h, w))
 
                 an.write(frame, speed, updates)
                 if SAVE_SIGN:    

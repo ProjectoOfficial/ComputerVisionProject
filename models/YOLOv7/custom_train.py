@@ -508,7 +508,7 @@ if __name__ == '__main__':
 
     ADAM = True
     ARTIFACT_ALIAS = 'latest'
-    BATCH_SIZE = 24 if MULTI_GPU else 8
+    BATCH_SIZE = 30 if MULTI_GPU else 8
     BBOX_INTERVAL = -1
     BUCKET = ''
     CACHE_IMAGES = False
