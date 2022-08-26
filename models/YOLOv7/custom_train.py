@@ -516,7 +516,7 @@ if __name__ == '__main__':
     DATA_DIR = os.path.join(current, 'data', 'bdd100k')
     DEVICE = '0, 1' if MULTI_GPU else '0'
     ENTITY = None
-    EPOCHS = 2
+    EPOCHS = 10
     EVOLVE = False
     EXIST_OK = False
     HYP = os.path.join(current, 'data', 'hyp.scratch.custom.yaml')
@@ -577,7 +577,7 @@ if __name__ == '__main__':
         dist.init_process_group(backend='nccl', init_method='env://')  # distributed backend
         assert BATCH_SIZE % world_size == 0, '--batch-size must be multiple of CUDA device count'
         BATCH_SIZE = total_batch_size // world_size
-        print("{} {} {} {}".format(LOCAL_RANK, BATCH_SIZE, world_size, global_rank))
+        print("{} {} {} {}".format(LOCAL_RANK, BATCH_SIZE, world_size, global_rank)) # global rank non devono essere uguali
     settings['TOTAL_BATCH_SIZE'] = total_batch_size
     settings['BATCH_SIZE'] = BATCH_SIZE
     settings['DEVICE'] = device

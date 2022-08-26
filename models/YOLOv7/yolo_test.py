@@ -94,7 +94,7 @@ if __name__ == '__main__':
     STRIDE = 32
     TASK = 'val'
     VERBOSE = True
-    WEIGHTS = os.path.join(current, 'last.pt')
+    WEIGHTS = os.path.join(current, 'runs', 'train', 'custom', 'last.pt')
     WORKERS = 6
 
     # Set save directory
