@@ -1,11 +1,18 @@
+#import imp
 import numpy as np
 import cv2 as cv
-
+import sys
 import os
 import shutil
 from typing import Union, Tuple
 from pathlib import Path
-#from Models.YOLOv7.utils.general import xyxy2xywhn
+path_root = Path(__file__).parents[1]
+#print(path_root)
+sys.path.append(str(path_root))
+#print(sys.path)
+
+#from models.YOLOv7.utils.general import xyxy2xywhn
+from models.YOLOv7.utils.general import xyxy2xywhn
 
 ROOT_DIR = Path(os.path.dirname(os.path.abspath(__file__))) # This is your Project Root
 RESULTS_DIR = ROOT_DIR / 'detected_circles'
@@ -312,10 +319,10 @@ class Sign_Detector():
         axes = (i[2], i[2])
         center = np.uint(np.around(center))
         axes = np.uint(np.around(axes))
-        points = np.array((center[0] - axes[0], center[1] - axes[1], center[0] + axes[0], center[1] + axes[1]))
+        points = np.array((center[0] - axes[0], center[1] - axes[1], center[0] + axes[0], center[1] + axes[1]), dtype=np.float32)
         if points[0] >= points[2] or points[1] >= points[3]:
           points = None
-    return xyxy2xywhn(x=points, w = real_w, h = real_h)
+    return xyxy2xywhn(x=np.expand_dims(points, axis=0), w = real_w, h = real_h)
   
   
 
@@ -360,6 +367,10 @@ def main():
     #frame_out = draw_circles(frame, circles, (height, width), (height, width), (h, w))
     frame_out = an.draw_bb(frame, sd.extract_bb(circles, h, w))
     #frame_out = cv.resize(frame_out, (720, 720))
+    """
+    Test of function with BBs in numpy:
+    """
+    print(sd.extract_bb_yolo(circles_small = circles, h = h, w = w, real_h = height, real_w = width))
     cv.imshow("frame", frame_out)
     cv.waitKey(0)
     cv.destroyAllWindows()

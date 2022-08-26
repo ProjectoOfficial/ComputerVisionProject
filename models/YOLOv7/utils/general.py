@@ -10,6 +10,7 @@ import re
 import subprocess
 import time
 from pathlib import Path
+import sys
 
 import cv2
 import numpy as np
@@ -17,7 +18,8 @@ import pandas as pd
 import torch
 import torchvision
 import yaml
-
+path_root = Path(__file__).parents[1]
+sys.path.append(str(path_root))
 from utils.google_utils import gsutil_getsize
 from utils.metrics import fitness
 from utils.torch_utils import init_torch_seeds
