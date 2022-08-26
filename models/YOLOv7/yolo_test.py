@@ -108,7 +108,7 @@ if __name__ == '__main__':
         data_size = (1280, 720)
         preprocessor = Preprocessing((IMG_SIZE, IMG_SIZE))
         valset = BDDDataset(DATA_DIR, TASK, HYP, data_size, preprocessor=preprocessor, mosaic=False, augment=False, rect=True, image_weights=IMAGE_WEIGHTS, stride=STRIDE, 
-        batch_size=BATCH_SIZE, concat_coco_names=True) 
+        batch_size=BATCH_SIZE, concat_coco_names=False) 
         valloader = torch.utils.data.DataLoader(valset, BATCH_SIZE, collate_fn=BDDDataset.collate_fn, num_workers=WORKERS)
     else:
         with open(DATA_DIR) as f:

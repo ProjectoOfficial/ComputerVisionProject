@@ -82,7 +82,7 @@ def train(settings: dict):
     single_cls = settings['SINGLE_CLS']
     stride = settings['STRIDE']
     sync_bn = settings['SYNC_BN']
-    use_coco_labels = ['USE_COCO_LABELS']
+    use_coco_labels = settings['USE_COCO_LABELS']
     upload_dataset = settings['UPLOAD_DATASET']
     weights = settings['WEIGHTS']
     workers = settings['WORKERS']
@@ -577,6 +577,7 @@ if __name__ == '__main__':
         dist.init_process_group(backend='nccl', init_method='env://')  # distributed backend
         assert BATCH_SIZE % world_size == 0, '--batch-size must be multiple of CUDA device count'
         BATCH_SIZE = total_batch_size // world_size
+        print("{} {} {} {}".format(LOCAL_RANK, BATCH_SIZE, world_size, global_rank))
     settings['TOTAL_BATCH_SIZE'] = total_batch_size
     settings['BATCH_SIZE'] = BATCH_SIZE
     settings['DEVICE'] = device
