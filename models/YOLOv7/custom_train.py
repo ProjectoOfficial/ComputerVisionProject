@@ -50,24 +50,23 @@ logger = logging.getLogger(__name__)
 def train(opt):    
     hyp = opt.hyp
     device = opt.device
-    save_dir = opt.save_dir
     logger.info(colorstr('hyperparameters: ') + ', '.join(f'{k}={v}' for k, v in hyp.items()))
 
     # Directories
-    wdir = Path(os.path.join(save_dir, 'weights'))
+    wdir = Path(os.path.join(opt.save_dir, 'weights'))
     wdir.mkdir(parents=True, exist_ok=True)  # make dir
-    last = Path(os.path.join(save_dir, 'last.pt'))
-    best = Path(os.path.join(save_dir, 'best.pt'))
-    results_file = Path(os.path.join(save_dir, 'results.txt'))
+    last = Path(os.path.join(opt.save_dir, 'last.pt'))
+    best = Path(os.path.join(opt.save_dir, 'best.pt'))
+    results_file = Path(os.path.join(opt.save_dir, 'results.txt'))
 
     # Save run settings
 
-    with open(Path(os.path.join(save_dir, 'hyp.yaml')), 'w') as f:
+    with open(Path(os.path.join(opt.save_dir, 'hyp.yaml')), 'w') as f:
         yaml.dump(hyp, f, sort_keys=False)
-    '''
-    with open(save_dir / 'opt.yaml', 'w') as f:
+
+    with open(opt.save_dir / 'opt.yaml', 'w') as f:
         yaml.dump(vars(opt), f, sort_keys=False)
-    '''
+
 
     # Configure
     plots = not opt.evolve  # create plots
@@ -313,7 +312,7 @@ def train(opt):
     compute_loss = ComputeLoss(model)  # init loss class
     logger.info(f'Image sizes {imgsz} train, {imgsz_test} test\n'
                 f'Using {trainloader.num_workers} dataloader workers\n'
-                f'Logging results to {save_dir}\n'
+                f'Logging results to {opt.save_dir}\n'
                 f'Starting training for {opt.epochs} epochs...')
     torch.save(model, Path(os.path.join( wdir, 'init.pt')))
     for epoch in range(start_epoch, opt.epochs):  # epoch ------------------------------------------------------------------
@@ -635,7 +634,7 @@ if __name__ == '__main__':
         if global_rank in [-1, 0]:
             prefix = colorstr('tensorboard: ')
             logger.info(f"{prefix}Start with 'tensorboard --logdir {opt.project}', view at http://localhost:6006/")
-            tb_writer = SummaryWriter(save_dir)  # Tensorboard
+            tb_writer = SummaryWriter(opt.save_dir)  # Tensorboard
         train(opt)
 
     # Evolve hyperparameters (optional)
@@ -680,7 +679,7 @@ if __name__ == '__main__':
         assert int(opt.local_rank) == -1, 'DDP mode not implemented for --evolve'
         opt.no_test, opt.no_save = True, True  # only test/save final epoch
         # ei = [isinstance(x, (int, float)) for x in hyp.values()]  # evolvable indices
-        yaml_file = Path(os.path.join(save_dir, 'hyp_evolved.yaml'))  # save best result here
+        yaml_file = Path(os.path.join(opt.save_dir, 'hyp_evolved.yaml'))  # save best result here
         if opt.bucket:
             os.system('gsutil cp gs://%s/evolve.txt .' % opt.bucket)  # download evolve.txt if exists
 
