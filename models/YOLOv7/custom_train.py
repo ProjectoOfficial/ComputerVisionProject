@@ -83,6 +83,23 @@ def train(opt):
     names = ['item'] if opt.single_cls and len(trainset.names) != 1 else trainset.names
     assert len(names) == nc, '%g names found for nc=%g dataset in %s' % (len(names), nc, opt.data_dir)  # check
 
+    data_dict = {
+        'nc': nc,
+        'train': opt.data,
+        'names': names,
+    }
+
+    # Logging- Doing this before checking the dataset. Might update data_dict
+    loggers = {'wandb': None}  # loggers dict
+    if opt.global_rank in [-1, 0]:
+        opt.hyp = hyp  # add hyperparameters
+        run_id = torch.load(opt.weights).get('wandb_id') if opt.weights.endswith('.pt') and os.path.isfile(opt.weights) else None
+        wandb_logger = WandbLogger(opt, Path(opt.save_dir).stem, run_id, data_dict)
+        loggers['wandb'] = wandb_logger.wandb
+        data_dict = wandb_logger.data_dict
+        if wandb_logger.wandb:
+            weights, epochs, hyp = opt.weights, opt.epochs, opt.hyp  # WandbLogger might update weights, epochs if resuming
+
     # Model
     pretrained = opt.weights.endswith('.pt')
     if pretrained:
@@ -386,6 +403,9 @@ def train(opt):
                     # if tb_writer:
                     #     tb_writer.add_image(f, result, dataformats='HWC', global_step=epoch)
                     #     tb_writer.add_graph(torch.jit.trace(model, imgs, strict=False), [])  # add model graph
+                elif plots and ni == 10 and wandb_logger.wandb:
+                    wandb_logger.log({"Mosaics": [wandb_logger.wandb.Image(str(x), caption=x.name) for x in
+                                                  save_dir.glob('train*.jpg') if x.exists()]})
 
             # end batch ------------------------------------------------------------------------------------------------
         # end epoch ----------------------------------------------------------------------------------------------------
@@ -398,7 +418,9 @@ def train(opt):
         if opt.global_rank in [-1, 0]:
             # mAP
             ema.update_attr(model, include=['yaml', 'nc', 'hyp', 'gr', 'names', 'stride', 'class_weights'])
-            final_epoch = epoch + 1 == epochs
+            final_epoch = epoch + 1 == opt.epochs
+            if not opt.notest or final_epoch:  # Calculate mAP
+                wandb_logger.current_epoch = epoch + 1
 
             # Write
             with open(results_file, 'a') as f:
@@ -414,11 +436,14 @@ def train(opt):
             for x, tag in zip(list(mloss[:-1]) + list(results) + lr, tags):
                 if tb_writer:
                     tb_writer.add_scalar(tag, x, epoch)  # tensorboard
+                if wandb_logger.wandb:
+                    wandb_logger.log({tag: x})  # W&B
 
             # Update best mAP
             fi = fitness(np.array(results).reshape(1, -1))  # weighted combination of [P, R, mAP@.5, mAP@.5-.95]
             if fi > best_fitness:
                 best_fitness = fi
+            wandb_logger.end_epoch(best_result=best_fitness == fi)
 
             # Save model
             if (not opt.nosave) or (final_epoch and not opt.evolve):  # if save
@@ -443,6 +468,10 @@ def train(opt):
                     torch.save(ckpt, Path(os.path.join(wdir, 'epoch_{:03d}.pt'.format(epoch))))
                 elif epoch >= (opt.epochs-5):
                     torch.save(ckpt, Path(os.path.join(wdir, 'epoch_{:03d}.pt'.format(epoch))))
+                if wandb_logger.wandb:
+                    if ((epoch + 1) % opt.save_period == 0 and not final_epoch) and opt.save_period != -1:
+                        wandb_logger.log_model(
+                            last.parent, opt, epoch, fi, best_model=best_fitness == fi)
                 del ckpt
 
         # end epoch ----------------------------------------------------------------------------------------------------
@@ -451,7 +480,13 @@ def train(opt):
         # Plots
         if plots:
             plot_results(save_dir=save_dir)  # save as results.png
+            if wandb_logger.wandb:
+                files = ['results.png', 'confusion_matrix.png', *[f'{x}_curve.png' for x in ('F1', 'PR', 'P', 'R')]]
+                wandb_logger.log({"Results": [wandb_logger.wandb.Image(str(opt.save_dir / f), caption=f) for f in files
+                                              if (opt.save_dir / f).exists()]})
 
+        logger.info('%g epochs completed in %.3f hours.\n' % (epoch - start_epoch + 1, (time.time() - t0) / 3600))
+        
         # Strip optimizers
         final = best if best.exists() else last  # final model
         for f in last, best:
@@ -459,6 +494,11 @@ def train(opt):
                 strip_optimizer(f)  # strip optimizers
         if opt.bucket:
             os.system(f'gsutil cp {final} gs://{opt.bucket}/weights')  # upload
+        if wandb_logger.wandb and not opt.evolve:  # Log the stripped model
+            wandb_logger.wandb.log_artifact(str(final), type='model',
+                                        name='run_' + wandb_logger.wandb_run.id + '_model',
+                                        aliases=['last', 'best', 'stripped'])
+        wandb_logger.finish_run()
     else:
         dist.destroy_process_group()
     torch.cuda.empty_cache()
