@@ -1,15 +1,10 @@
-import gdown
 import argparse, os
 import socket
 from ftplib import FTP 
 from tqdm import tqdm
 from google_drive_downloader import GoogleDriveDownloader
-from unrar import rarfile
-
-global FILE_SIZE
-global sizeWritten
-
-sizeWritten = 0
+from colorama import Fore
+from colorama import Style
 
 def check_ip(ip: str):
     try:
@@ -21,8 +16,10 @@ def check_ip(ip: str):
 #insert host. username and password
 def ftp_upload(host: str, username: str, password: str, path: str):
     ftp = FTP(host, timeout=30)
-    ftp.login(user=username, passwd = password)
+    print(f"{Fore.BLUE}")
+    print(ftp.login(user=username, passwd = password))
     print(ftp.getwelcome())
+    print(f"{Fore.YELLOW}")
     ftp.set_pasv(False)
     print(ftp.dir())
 
@@ -33,25 +30,26 @@ def ftp_upload(host: str, username: str, password: str, path: str):
 
     filesize = os.path.getsize(args.file)
     file = open(path, 'rb')
+    
+    print(f"{Fore.MAGENTA}")
     with tqdm(unit = 'blocks', unit_scale = True, leave = False, miniters = 1, desc = 'Uploading......', total = filesize) as tqdm_instance:
         ftp.storbinary('STOR ' + os.path.basename(path), file, 2048, callback = lambda sent: tqdm_instance.update(len(sent)))
 
+    print(f"{Style.RESET_ALL}")
+    
     file.close()
     ftp.close()
 
 def g_download(url: str, name: str, where: str):
     file_id = url.rsplit('/', 1)[-1]
 
-    if name.endswith('rar'):
-        GoogleDriveDownloader.download_file_from_google_drive(file_id=file_id,
-                                                        dest_path=os.path.join(where, name))
-        rar = rarfile.RarFile(os.path.join(where, name))
-        rar.extractall()
+    if os.path.isfile(os.join(where, name)):
+        print("{Fore.YELLOW}WARNING{Style.RESET_ALL}: File already exists")
+        return
     
-    else:
-        GoogleDriveDownloader.download_file_from_google_drive(file_id=file_id,
-                                                        dest_path=os.path.join(where, name),
-                                                        unzip=True)
+    GoogleDriveDownloader.download_file_from_google_drive(file_id=file_id,
+                                                    dest_path=os.path.join(where, name),
+                                                    unzip=True)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -81,4 +79,4 @@ if __name__ == '__main__':
         assert args.where is not None and os.path.isdir(args.where), "Invalid file path"
         g_download(args.g_url, args.name, args.where)
 
-    print("program terminated successfully!")
+    print("{Fore.GREEN}program terminated successfully{Style.RESET_ALL}!")
