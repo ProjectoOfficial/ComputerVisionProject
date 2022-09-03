@@ -75,7 +75,7 @@ def train(opt):
     init_seeds(2 + opt.global_rank)
 
     # TrainSet
-    preprocess = Preprocessing((opt.img_size, opt.img_size))
+    preprocess = Preprocessing(opt.img_size)
     trainset = BDDDataset(opt.data, 'train', hyp, opt.data_size, preprocessor=preprocess, mosaic=False, augment=False, rect=opt.rect, image_weights=opt.image_weights, stride=opt.stride, 
     batch_size = opt.batch_size, concat_coco_names=opt.use_coco_labels)
     
