@@ -15,3 +15,4 @@ requests~=2.25.1
 gdown~=4.5.1
 setuptools~=52.0.0
 albumentations~=1.2.1
+unrar~=0.4
