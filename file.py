@@ -1,10 +1,16 @@
-from ftplib import FTP, FTP_TLS
-import ipaddress
+from ctypes.wintypes import SIZE
 import ssl
 from urllib.parse import uses_netloc
 import gdown
 import argparse, os
 import socket
+import ftputil
+from ftplib import FTP 
+
+global FILE_SIZE
+global sizeWritten
+
+sizeWritten = 0
 
 def check_ip(ip: str):
     try:
@@ -21,18 +27,24 @@ def dir_path(string):
 
 #insert host. username and password
 def ftp_upload(host: str, username: str, password: str, path: str):
-    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS)
-    session = FTP()
-    session.set_pasv(True)
-    session.connect(host=host)
-    session.login(user=username, passwd=password)
+    ftp = FTP(host, timeout=30)
+    ftp.login(user=username, passwd = password)
+    print(ftp.getwelcome())
+    ftp.set_pasv(False)
+    print(ftp.dir())
 
-    print(session.retrlines('LIST'))
+    try: 
+        print(ftp.delete(os.path.basename(path)))
+    except:
+        print("could not delete " + os.path.basename(path))
 
-    #file = open(path,'rb')                  # file to send
-    #session.storbinary('STOR ' + path, file)     # send the file
-    #file.close()                                    # close file and FTP
-    session.quit()
+    file = open(path, 'rb')
+    action = "STOR " + os.path.basename(path)
+    print(ftp.storbinary(action, file, 1024))
+
+    file.close()
+    ftp.close()
+   
 
 #url = "https://drive.google.com/drive/folders/1rkoaZ-io_HjaeUgKoKMEQbq8vo0OQBgS"
 #gdown.download_folder(url, quiet=True, use_cookies=False)
@@ -56,6 +68,13 @@ if __name__ == '__main__':
         assert args.host is not None and check_ip(args.host), "Invalid host address"
 
     if not args.download:
+        sizeWritten = 0
+        totalSize = os.path.getsize(args.file)
+        print('Total file size : ' + str(round(totalSize / 1024 / 1024 ,1)) + ' Mb')
+
+        FILE_SIZE = os.path.getsize(args.file)
         ftp_upload(args.host, args.username, args.password, args.file)
     else:
         pass
+
+    
