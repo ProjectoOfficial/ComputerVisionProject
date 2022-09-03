@@ -76,7 +76,7 @@ class Test():
 if __name__ == '__main__':
     DATA_DIR = os.path.join(current, 'data', 'bdd100k')
     DEVICE = '0'
-    BATCH_SIZE = 32
+    BATCH_SIZE = 9
     COMPUTE_LOSS = None
     CONF_THRES= 0.001
     IMG_SIZE = 640
@@ -94,7 +94,8 @@ if __name__ == '__main__':
     STRIDE = 32
     TASK = 'val'
     VERBOSE = True
-    WEIGHTS = os.path.join(current, 'runs', 'train', 'custom', 'last.pt')
+    #WEIGHTS = os.path.join(current, 'runs', 'train', 'custom', 'last.pt')
+    WEIGHTS = os.path.join(current, 'last.pt')
     WORKERS = 6
 
     # Set save directory

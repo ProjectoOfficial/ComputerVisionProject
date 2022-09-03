@@ -90,7 +90,7 @@ if __name__ == "__main__":
     if not os.path.isdir(os.path.join(current, "Recordings")):
         os.makedirs(os.path.join(current, "Recordings"))
 
-    camera = RTCamera(CAMERA_DEVICE, fps=30, resolution=RESOLUTION, cuda=True, auto_exposure=False, )
+    camera = RTCamera(CAMERA_DEVICE, fps=30, resolution=RESOLUTION, cuda=True, auto_exposure=False, rotation=cv2.ROTATE_90_COUNTERCLOCKWISE)
     camera.start()
 
     start_fps = time.time()
@@ -210,7 +210,7 @@ if __name__ == "__main__":
                         x, y, w, h = xywh
 
                         distance = Distance().get_Distance(xywh)
-                        cv2.rectangle(frame, (x, y), (x + 2*w, y + 2*h), (255,0,0), 2)
+                        cv2.rectangle(frame, (x, y), (x + w, y + h), (255,0,0), 2)
                         cv2.putText(frame, "{:.2f} {} {:.2f}".format(conf, names[int(cls)], distance), (x + 5, y + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (255,0,255), 1)
 
             height, width, _ = frame.shape
