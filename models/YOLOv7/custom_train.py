@@ -398,14 +398,14 @@ def train(opt):
 
                 # Plot
                 if plots and ni < 10:
-                    f = Path(os.path.join(save_dir, 'train_batch{}.jpg'.format(ni)))  # filename
+                    f = Path(os.path.join(opt.save_dir, 'train_batch{}.jpg'.format(ni)))  # filename
                     Thread(target=plot_images, args=(imgs, targets, paths, f), daemon=True).start()
                     # if tb_writer:
                     #     tb_writer.add_image(f, result, dataformats='HWC', global_step=epoch)
                     #     tb_writer.add_graph(torch.jit.trace(model, imgs, strict=False), [])  # add model graph
                 elif plots and ni == 10 and wandb_logger.wandb:
                     wandb_logger.log({"Mosaics": [wandb_logger.wandb.Image(str(x), caption=x.name) for x in
-                                                  save_dir.glob('train*.jpg') if x.exists()]})
+                                                  opt.save_dir.glob('train*.jpg') if x.exists()]})
 
             # end batch ------------------------------------------------------------------------------------------------
         # end epoch ----------------------------------------------------------------------------------------------------
@@ -479,7 +479,7 @@ def train(opt):
     if opt.global_rank in [-1, 0]:
         # Plots
         if plots:
-            plot_results(save_dir=save_dir)  # save as results.png
+            plot_results(save_dir=opt.save_dir)  # save as results.png
             if wandb_logger.wandb:
                 files = ['results.png', 'confusion_matrix.png', *[f'{x}_curve.png' for x in ('F1', 'PR', 'P', 'R')]]
                 wandb_logger.log({"Results": [wandb_logger.wandb.Image(str(opt.save_dir / f), caption=f) for f in files
