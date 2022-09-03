@@ -76,7 +76,7 @@ def train(opt):
 
     # TrainSet
     preprocess = Preprocessing(opt.img_size)
-    trainset = BDDDataset(opt.data, 'train', hyp, opt.data_size, preprocessor=preprocess, mosaic=False, augment=False, rect=opt.rect, image_weights=opt.image_weights, stride=opt.stride, 
+    trainset = BDDDataset(opt.data, opt.task, hyp, opt.data_size, preprocessor=preprocess, mosaic=False, augment=False, rect=opt.rect, image_weights=opt.image_weights, stride=opt.stride, 
     batch_size = opt.batch_size, concat_coco_names=opt.use_coco_labels)
     
     nc = 1 if opt.single_cls else len(trainset.names)
@@ -539,6 +539,7 @@ if __name__ == '__main__':
     parser.add_argument('--single-cls', action='store_true', help='train multi-class data as single-class')
     parser.add_argument('--stride', type=int, default=32, help='stride')
     parser.add_argument('--sync-bn', action='store_true', help='use SyncBatchNorm, only available in DDP mode')
+    parser.add_argument('--task', type=str, default="train", help='train or val')
     parser.add_argument('--upload_dataset', action='store_true', help='Upload dataset as W&B artifact table')
     parser.add_argument('--use-coco-labels', action='store_true', help='Use coco labels')
     parser.add_argument('--weights', type=str, default=os.path.join(current, 'yolov7_training.pt'), help='initial weights path')
