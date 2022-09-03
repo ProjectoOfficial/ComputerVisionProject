@@ -50,6 +50,7 @@ logger = logging.getLogger(__name__)
 def train(opt):    
     hyp = opt.hyp
     device = opt.device
+    opt.save_dir = Path(opt.save_dir)
     logger.info(colorstr('hyperparameters: ') + ', '.join(f'{k}={v}' for k, v in hyp.items()))
 
     # Directories
@@ -64,7 +65,7 @@ def train(opt):
     with open(Path(os.path.join(opt.save_dir, 'hyp.yaml')), 'w') as f:
         yaml.dump(hyp, f, sort_keys=False)
 
-    with open(opt.save_dir / 'opt.yaml', 'w') as f:
+    with open(os.path.join(opt.save_dir, 'opt.yaml'), 'w') as f:
         yaml.dump(vars(opt), f, sort_keys=False)
 
 
