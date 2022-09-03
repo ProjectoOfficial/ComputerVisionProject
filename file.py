@@ -1,11 +1,8 @@
-from ctypes.wintypes import SIZE
-import ssl
-from urllib.parse import uses_netloc
 import gdown
 import argparse, os
 import socket
-import ftputil
 from ftplib import FTP 
+from tqdm import tqdm
 
 global FILE_SIZE
 global sizeWritten
@@ -38,9 +35,11 @@ def ftp_upload(host: str, username: str, password: str, path: str):
     except:
         print("could not delete " + os.path.basename(path))
 
+    filesize = os.path.getsize(args.file)
     file = open(path, 'rb')
     action = "STOR " + os.path.basename(path)
-    print(ftp.storbinary(action, file, 1024))
+    with tqdm(unit = 'blocks', unit_scale = True, leave = False, miniters = 1, desc = 'Uploading......', total = filesize) as tqdm_instance:
+        ftp.storbinary('STOR ' + os.path.basename(path), file, 2048, callback = lambda sent: tqdm_instance.update(len(sent)))
 
     file.close()
     ftp.close()
@@ -56,7 +55,7 @@ if __name__ == '__main__':
     parser.add_argument('-U', '--username', type=str)
     parser.add_argument('-P', '--password', type=str)
     parser.add_argument('-H', '--host', type=str)
-    args = parser.parse_args() 
+    args = parser.parse_args()
 
     print(args)
 
@@ -68,11 +67,6 @@ if __name__ == '__main__':
         assert args.host is not None and check_ip(args.host), "Invalid host address"
 
     if not args.download:
-        sizeWritten = 0
-        totalSize = os.path.getsize(args.file)
-        print('Total file size : ' + str(round(totalSize / 1024 / 1024 ,1)) + ' Mb')
-
-        FILE_SIZE = os.path.getsize(args.file)
         ftp_upload(args.host, args.username, args.password, args.file)
     else:
         pass
