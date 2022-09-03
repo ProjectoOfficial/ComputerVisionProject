@@ -485,7 +485,7 @@ if __name__ == '__main__':
     parser.add_argument('--label-smoothing', type=float, default=0.0, help='Label smoothing epsilon')
     parser.add_argument('--linear-lr', action='store_true', help='linear LR')
     parser.add_argument('--local_rank', type=int, default=-1, help='DDP parameter, do not modify')
-    parser.add_argument('--multi-gpu', type=bool, default="store_true", help='true if you use more than 1 GPU for training')
+    parser.add_argument('--multi-gpu', default="store_true", help='true if you use more than 1 GPU for training')
     parser.add_argument('--multi-scale', action='store_true', help='vary img-size +/- 50%%')
     parser.add_argument('--name', default='bdd', help='save to project/name')
     parser.add_argument('--noautoanchor', action='store_true', help='disable autoanchor check')
