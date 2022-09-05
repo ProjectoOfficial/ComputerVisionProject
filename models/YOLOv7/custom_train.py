@@ -588,6 +588,7 @@ if __name__ == '__main__':
     WORKERS = 4 if MULTI_GPU else 6
 
     '''
+
     try:
         opt.local_rank = os.environ['LOCAL_RANK'] if opt.multi_gpu else -1
     except:
