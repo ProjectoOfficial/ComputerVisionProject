@@ -79,7 +79,7 @@ if __name__ == '__main__':
     parser.add_argument('--augment', action='store_true', help='augmented inference')
     parser.add_argument('--batch-size', type=int, default=9, help='size of each image batch')
     parser.add_argument('--compute-loss', default=None, help='')
-    parser.add_argument('--conf-thres', type=float, default=0.001, help='object confidence threshold')
+    parser.add_argument('--conf-threes', type=float, default=0.001, help='object confidence threshold')
     parser.add_argument('--data', type=str, default=os.path.join(current, 'data', 'bdd100k'), help='*.data path')
     parser.add_argument('--device', default='0', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--exist-ok', action='store_true', help='existing project/name ok, do not increment')
@@ -104,31 +104,6 @@ if __name__ == '__main__':
                         help='model.pt path(s)')
     parser.add_argument('--workers', type=int, default=6, help='')
     opt = parser.parse_args()
-    
-    
-    #DATA_DIR = os.path.join(current, 'data', 'bdd100k')
-    #DEVICE = '0'
-    #opt.batch_size = 9
-    #opt.opt.opt.compute_loss = None
-    #opt.conf_thres= 0.001
-    #opt.img_size = 640
-    #IMAGE_opt.weights = False
-    #opt.opt.iou_thres= 0.65  # for NMS
-    #opt.is_coco = False
-    #HYP = os.path.join(current, 'data', 'hyp.scratch.p5.yaml')
-    #NAME = 'custom'
-    #opt.plots = True
-    #PROJECT = os.path.join(current, 'runs', 'test') # save dir
-    #opt.save_conf = True
-    #opt.save_hybrid = False
-    #opt.save_json = True
-    #opt.save_txt = False | opt.save_hybrid
-    #STRIDE = 32
-    #TASK = 'val'
-    #opt.verbose = True
-    #opt.weights = os.path.join(current, 'runs', 'train', 'custom', 'last.pt')
-    #opt.weights = os.path.join(current, 'last.pt')
-    #WORKERS = 6
 
     # Set save directory
     save_dir = Path(increment_path(Path(opt.project) / opt.name, exist_ok=False))  # increment run
@@ -142,17 +117,17 @@ if __name__ == '__main__':
         preprocessor = Preprocessing((opt.img_size, opt.img_size))
         valset = BDDDataset(opt.data, opt.task, opt.hyp, data_size, preprocessor=preprocessor, mosaic=False, augment=False, rect=True, image_weights = opt.image_weights, stride=opt.stride,
         batch_size=opt.batch_size, concat_coco_names=False)
-        valloader = torch.utils.data.DataLoader(valset, opt.opt.batch_size, collate_fn=BDDDataset.collate_fn, num_workers=opt.workers)
+        valloader = torch.utils.data.DataLoader(valset, opt.batch_size, collate_fn=BDDDataset.collate_fn, num_workers=opt.workers)
     else:
         with open(opt.data) as f:
             data = yaml.load(f, Loader=yaml.SafeLoader)
             check_dataset(data)  # check
 
             task = opt.task if opt.task in ('train', 'val', 'test') else 'val'  # path to train/val/test images
-            valloader, valset = create_dataloader(data[task], opt.opt.img_size, opt.opt.batch_size, opt.stride, pad=0.5, rect=True,
+            valloader, valset = create_dataloader(data[task], opt.img_size, opt.batch_size, opt.stride, pad=0.5, rect=True,
                                             prefix=colorstr(f'{task}: '))[0]
 
-    tester = Test(opt.opt.weights, opt.opt.batch_size, opt.device, save_dir)
+    tester = Test(opt.weights, opt.batch_size, opt.device, save_dir)
 
     seen = 0
     confusion_matrix = ConfusionMatrix(nc=tester.nc)
@@ -176,8 +151,8 @@ if __name__ == '__main__':
             out, train_out = tester.predict(img)  # inference and training outputs
             t0 += time_synchronized() - t
 
-            if opt.opt.opt.compute_loss:
-                loss += opt.opt.opt.compute_loss([x.float() for x in train_out], targets)[1][:3]  # box, obj, cls
+            if opt.compute_loss:
+                loss += opt.compute_loss([x.float() for x in train_out], targets)[1][:3]  # box, obj, cls
 
             # Run NMS
             targets[:, 2:] *= torch.Tensor([width, height, width, height]).to(tester.device)  # to pixels
@@ -253,7 +228,7 @@ if __name__ == '__main__':
                         if d.item() not in detected_set:
                             detected_set.add(d.item())
                             detected.append(d)
-                            correct[pi[j]] = ious[j] > iouv  # opt.opt.iou_thres is 1xn
+                            correct[pi[j]] = ious[j] > iouv  #opt.iou_thres is 1xn
                             if len(detected) == nl:  # all targets already located in image
                                 break
 
