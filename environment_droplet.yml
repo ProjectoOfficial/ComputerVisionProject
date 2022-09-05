@@ -1,0 +1,5 @@
+name: Python2021
+channels:
+  - http://conda.anaconda.org/gurobi
+  - defaults
+prefix: C:\Users\daniel\miniconda3\envs\Python2021
