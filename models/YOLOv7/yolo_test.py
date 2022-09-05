@@ -74,53 +74,85 @@ class Test():
         return out, train_out
 
 if __name__ == '__main__':
-    DATA_DIR = os.path.join(current, 'data', 'bdd100k')
-    DEVICE = '0'
-    BATCH_SIZE = 9
-    COMPUTE_LOSS = None
-    CONF_THRES= 0.001
-    IMG_SIZE = 640
-    IMAGE_WEIGHTS = False
-    IOU_THRES= 0.65  # for NMS
-    IS_COCO = False
-    HYP = os.path.join(current, 'data', 'hyp.scratch.p5.yaml')
-    NAME = 'custom'
-    PLOTS = True
-    PROJECT = os.path.join(current, 'runs', 'test') # save dir
-    SAVE_CONF = True
-    SAVE_HYBRID = False
-    SAVE_JSON = True
-    SAVE_TXT = False | SAVE_HYBRID
-    STRIDE = 32
-    TASK = 'val'
-    VERBOSE = True
-    #WEIGHTS = os.path.join(current, 'runs', 'train', 'custom', 'last.pt')
-    WEIGHTS = os.path.join(current, 'last.pt')
-    WORKERS = 6
+
+    parser = argparse.ArgumentParser(prog='yolo_test.py')
+    parser.add_argument('--augment', action='store_true', help='augmented inference')
+    parser.add_argument('--batch-size', type=int, default=9, help='size of each image batch')
+    parser.add_argument('--compute-loss', default=None, help='')
+    parser.add_argument('--conf-thres', type=float, default=0.001, help='object confidence threshold')
+    parser.add_argument('--data', type=str, default=os.path.join(current, 'data', 'bdd100k'), help='*.data path')
+    parser.add_argument('--device', default='0', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
+    parser.add_argument('--exist-ok', action='store_true', help='existing project/name ok, do not increment')
+    parser.add_argument('--hyp', type=str, default=os.path.join(current, 'data', 'hyp.scratch.p5.yaml'), help='')
+    parser.add_argument('--image-weights', type=bool, default=False, help='')
+    parser.add_argument('--img-size', type=int, default=640, help='inference size (pixels)')
+    parser.add_argument('--is-coco', type=bool, default=False, help='')
+    parser.add_argument('--iou-thres', type=float, default=0.65, help='IOU threshold for NMS')
+    parser.add_argument('--name', type=str, default='custom', help='')
+    parser.add_argument('--no-trace', action='store_true', help='don`t trace model')
+    parser.add_argument('--plots',  action='store_true', help='')
+    parser.add_argument('--project', default=os.path.join(current, 'runs', 'test'), help='save to project/name')
+    parser.add_argument('--save-txt', default=False, action='store_true', help='save results to *.txt')
+    parser.add_argument('--save-hybrid', default=False, action='store_true', help='save label+prediction hybrid results to *.txt')
+    parser.add_argument('--save-conf', default=True, action='store_true', help='save confidences in --save-txt labels')
+    parser.add_argument('--save-json', default=True, action='store_true', help='save a cocoapi-compatible JSON results file')
+    parser.add_argument('--single-cls', action='store_true', help='treat as single-class dataset')
+    parser.add_argument('--stride', type=int, default=32, help='')
+    parser.add_argument('--task', default='val', help='train, val, test, speed or study')
+    parser.add_argument('--verbose', default=True, action='store_true', help='report mAP by class')
+    parser.add_argument('--weights', nargs='+', type=str, default=os.path.join(current, 'last.pt'),
+                        help='model.pt path(s)')
+    parser.add_argument('--workers', type=int, default=6, help='')
+    opt = parser.parse_args()
+    
+    
+    #DATA_DIR = os.path.join(current, 'data', 'bdd100k')
+    #DEVICE = '0'
+    #opt.batch_size = 9
+    #opt.opt.opt.compute_loss = None
+    #opt.conf_thres= 0.001
+    #opt.img_size = 640
+    #IMAGE_opt.weights = False
+    #opt.opt.iou_thres= 0.65  # for NMS
+    #opt.is_coco = False
+    #HYP = os.path.join(current, 'data', 'hyp.scratch.p5.yaml')
+    #NAME = 'custom'
+    #opt.plots = True
+    #PROJECT = os.path.join(current, 'runs', 'test') # save dir
+    #opt.save_conf = True
+    #opt.save_hybrid = False
+    #opt.save_json = True
+    #opt.save_txt = False | opt.save_hybrid
+    #STRIDE = 32
+    #TASK = 'val'
+    #opt.verbose = True
+    #opt.weights = os.path.join(current, 'runs', 'train', 'custom', 'last.pt')
+    #opt.weights = os.path.join(current, 'last.pt')
+    #WORKERS = 6
 
     # Set save directory
-    save_dir = Path(increment_path(Path(PROJECT) / NAME, exist_ok=False))  # increment run
-    (save_dir / 'labels' if SAVE_TXT else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
+    save_dir = Path(increment_path(Path(opt.project) / opt.name, exist_ok=False))  # increment run
+    (save_dir / 'labels' if opt.save_txt else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
     
-    if isinstance(DATA_DIR, str):
-        IS_COCO = DATA_DIR.endswith('coco.yaml')
+    if isinstance(opt.data, str):
+        opt.is_coco = opt.data.endswith('coco.yaml')
     
-    if not IS_COCO:
+    if not opt.is_coco:
         data_size = (1280, 720)
-        preprocessor = Preprocessing((IMG_SIZE, IMG_SIZE))
-        valset = BDDDataset(DATA_DIR, TASK, HYP, data_size, preprocessor=preprocessor, mosaic=False, augment=False, rect=True, image_weights=IMAGE_WEIGHTS, stride=STRIDE, 
-        batch_size=BATCH_SIZE, concat_coco_names=False) 
-        valloader = torch.utils.data.DataLoader(valset, BATCH_SIZE, collate_fn=BDDDataset.collate_fn, num_workers=WORKERS)
+        preprocessor = Preprocessing((opt.img_size, opt.img_size))
+        valset = BDDDataset(opt.data, opt.task, opt.hyp, data_size, preprocessor=preprocessor, mosaic=False, augment=False, rect=True, image_weights = opt.image_weights, stride=opt.stride,
+        batch_size=opt.batch_size, concat_coco_names=False)
+        valloader = torch.utils.data.DataLoader(valset, opt.opt.batch_size, collate_fn=BDDDataset.collate_fn, num_workers=opt.workers)
     else:
-        with open(DATA_DIR) as f:
+        with open(opt.data) as f:
             data = yaml.load(f, Loader=yaml.SafeLoader)
             check_dataset(data)  # check
 
-            task = TASK if TASK in ('train', 'val', 'test') else 'val'  # path to train/val/test images
-            valloader, valset = create_dataloader(data[task], IMG_SIZE, BATCH_SIZE, STRIDE, pad=0.5, rect=True,
+            task = opt.task if opt.task in ('train', 'val', 'test') else 'val'  # path to train/val/test images
+            valloader, valset = create_dataloader(data[task], opt.opt.img_size, opt.opt.batch_size, opt.stride, pad=0.5, rect=True,
                                             prefix=colorstr(f'{task}: '))[0]
 
-    tester = Test(WEIGHTS, BATCH_SIZE, DEVICE, save_dir)
+    tester = Test(opt.opt.weights, opt.opt.batch_size, opt.device, save_dir)
 
     seen = 0
     confusion_matrix = ConfusionMatrix(nc=tester.nc)
@@ -144,14 +176,14 @@ if __name__ == '__main__':
             out, train_out = tester.predict(img)  # inference and training outputs
             t0 += time_synchronized() - t
 
-            if COMPUTE_LOSS:
-                loss += COMPUTE_LOSS([x.float() for x in train_out], targets)[1][:3]  # box, obj, cls
+            if opt.opt.opt.compute_loss:
+                loss += opt.opt.opt.compute_loss([x.float() for x in train_out], targets)[1][:3]  # box, obj, cls
 
             # Run NMS
             targets[:, 2:] *= torch.Tensor([width, height, width, height]).to(tester.device)  # to pixels
-            lb = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if SAVE_HYBRID else []  # for autolabelling
+            lb = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if opt.save_hybrid else []  # for autolabelling
             t = time_synchronized()
-            out = non_max_suppression(out, conf_thres=CONF_THRES, iou_thres=IOU_THRES, labels=lb, multi_label=True)
+            out = non_max_suppression(out, conf_thres=opt.conf_thres, iou_thres=opt.iou_thres, labels=lb, multi_label=True)
             t1 += time_synchronized() - t
 
         # Statistics per image
@@ -172,23 +204,23 @@ if __name__ == '__main__':
             scale_coords(img[si].shape[1:], predn[:, :4], shapes[si][0], shapes[si][1])  # native-space pred
 
             # Append to text file
-            if SAVE_TXT:
+            if opt.save_txt:
                 gn = torch.tensor(shapes[si][0])[[1, 0, 1, 0]]  # normalization gain whwh
                 for *xyxy, conf, cls in predn.tolist():
                     xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
-                    line = (cls, *xywh, conf) if SAVE_CONF else (cls, *xywh)  # label format
+                    line = (cls, *xywh, conf) if opt.save_conf else (cls, *xywh)  # label format
                     with open(save_dir / 'labels' / (path.stem + '.txt'), 'a') as f:
                         f.write(('%g ' * len(line)).rstrip() % line + '\n')
             
             # Append to pycocotools JSON dictionary
-            if SAVE_JSON:
+            if opt.save_json:
                 # [{"image_id": 42, "category_id": 18, "bbox": [258.15, 41.29, 348.26, 243.78], "score": 0.236}, ...
                 image_id = int(path.stem) if path.stem.isnumeric() else path.stem
                 box = xyxy2xywh(predn[:, :4])  # xywh
                 box[:, :2] -= box[:, 2:] / 2  # xy center to top-left corner
                 for p, b in zip(pred.tolist(), box.tolist()):
                     jdict.append({'image_id': image_id,
-                                  'category_id': coco91class[int(p[5])] if IS_COCO else int(p[5]),
+                                  'category_id': coco91class[int(p[5])] if opt.is_coco else int(p[5]),
                                   'bbox': [round(x, 3) for x in b],
                                   'score': round(p[4], 5)})
 
@@ -201,7 +233,7 @@ if __name__ == '__main__':
                 # target boxes
                 tbox = xywh2xyxy(labels[:, 1:5])
                 scale_coords(img[si].shape[1:], tbox, shapes[si][0], shapes[si][1])  # native-space labels
-                if PLOTS:
+                if opt.plots:
                     confusion_matrix.process_batch(predn, torch.cat((labels[:, 0:1], tbox), 1))
 
             # Per target class
@@ -221,7 +253,7 @@ if __name__ == '__main__':
                         if d.item() not in detected_set:
                             detected_set.add(d.item())
                             detected.append(d)
-                            correct[pi[j]] = ious[j] > iouv  # iou_thres is 1xn
+                            correct[pi[j]] = ious[j] > iouv  # opt.opt.iou_thres is 1xn
                             if len(detected) == nl:  # all targets already located in image
                                 break
 
@@ -229,7 +261,7 @@ if __name__ == '__main__':
             stats.append((correct.cpu(), pred[:, 4].cpu(), pred[:, 5].cpu(), tcls))
 
         # Plot images
-        if PLOTS and batch_i < 3:
+        if opt.plots and batch_i < 3:
             f = save_dir / f'test_batch{batch_i}_labels.jpg'  # labels
             Thread(target=plot_images, args=(img, targets, paths, f, names), daemon=True).start()
             f = save_dir / f'test_batch{batch_i}_pred.jpg'  # predictions
@@ -238,7 +270,7 @@ if __name__ == '__main__':
     # Compute statistics
     stats = [np.concatenate(x, 0) for x in zip(*stats)]  # to numpy
     if len(stats) and stats[0].any():
-        p, r, ap, f1, ap_class = ap_per_class(*stats, plot=PLOTS, save_dir=save_dir, names=names)
+        p, r, ap, f1, ap_class = ap_per_class(*stats, plot=opt.plots, save_dir=save_dir, names=names)
         ap50, ap = ap[:, 0], ap.mean(1)  # AP@0.5, AP@0.5:0.95
         mp, mr, map50, map = p.mean(), r.mean(), ap50.mean(), ap.mean()
         nt = np.bincount(stats[3].astype(np.int64), minlength=tester.nc)  # number of targets per class
@@ -250,19 +282,19 @@ if __name__ == '__main__':
     print(pf % ('all', seen, nt.sum(), mp, mr, map50, map))
 
     # Print results per class
-    if (VERBOSE or tester.nc < 50) and tester.nc > 1 and len(stats):
+    if (opt.verbose or tester.nc < 50) and tester.nc > 1 and len(stats):
         for i, c in enumerate(ap_class):
             print(pf % (names[c], seen, nt[c], p[i], r[i], ap50[i], ap[i]))
 
     # Print speeds
-    t = tuple(x / seen * 1E3 for x in (t0, t1, t0 + t1)) + (IMG_SIZE, IMG_SIZE, BATCH_SIZE)  # tuple
+    t = tuple(x / seen * 1E3 for x in (t0, t1, t0 + t1)) + (opt.img_size, opt.img_size, opt.batch_size)  # tuple
     print('Speed: %.1f/%.1f/%.1f ms inference/NMS/total per %gx%g image at batch-size %g' % t)
 
-    if PLOTS:
+    if opt.plots:
         confusion_matrix.plot(save_dir=save_dir, names=list(names.values()))
 
-    if SAVE_JSON and len(jdict):
-        w = Path(WEIGHTS[0] if isinstance(WEIGHTS, list) else WEIGHTS).stem if WEIGHTS is not None else ''  # weights
+    if opt.save_json and len(jdict):
+        w = Path(opt.weights[0] if isinstance(opt.weights, list) else opt.weights).stem if opt.weights is not None else ''  # opt.weights
         anno_json = './coco/annotations/instances_val2017.json'  # annotations json
         pred_json = str(save_dir / f"{w}_predictions.json")  # predictions json
         print('\nEvaluating pycocotools mAP... saving %s...' % pred_json)
@@ -276,7 +308,7 @@ if __name__ == '__main__':
             anno = COCO(anno_json)  # init annotations api
             pred = anno.loadRes(pred_json)  # init predictions api
             eval = COCOeval(anno, pred, 'bbox')
-            if IS_COCO:
+            if opt.is_coco:
                 eval.params.imgIds = [int(Path(x).stem) for x in valloader.dataset.img_files]  # image IDs to evaluate
             eval.evaluate()
             eval.accumulate()
@@ -287,7 +319,7 @@ if __name__ == '__main__':
 
     # Return results
     tester.model.float()  # for training
-    s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if SAVE_TXT else ''
+    s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if opt.save_txt else ''
     print(f"Results saved to {save_dir}{s}")
     maps = np.zeros(tester.nc) + map
     for i, c in enumerate(ap_class):
