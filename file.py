@@ -5,6 +5,8 @@ from tqdm import tqdm
 from google_drive_downloader import GoogleDriveDownloader
 from colorama import Fore
 from colorama import Style
+import gdown
+import zipfile
 
 def check_ip(ip: str):
     try:
@@ -47,9 +49,9 @@ def g_download(url: str, name: str, where: str):
         print(f"{Fore.YELLOW}WARNING{Style.RESET_ALL}: File already exists, download has stopped!")
         return
     
-    GoogleDriveDownloader.download_file_from_google_drive(file_id=file_id,
-                                                    dest_path=os.path.join(where, name),
-                                                    unzip=True)
+    gdown.download(url, os.path.join(where, name), quiet=False)
+    with zipfile.ZipFile(os.path.join(where, name), 'r') as zip_ref:
+        zip_ref.extractall(os.path.join(where))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
