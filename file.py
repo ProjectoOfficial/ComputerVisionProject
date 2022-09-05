@@ -43,8 +43,8 @@ def ftp_upload(host: str, username: str, password: str, path: str):
 def g_download(url: str, name: str, where: str):
     file_id = url.rsplit('/', 1)[-1]
 
-    if os.path.isfile(os.join(where, name)):
-        print("{Fore.YELLOW}WARNING{Style.RESET_ALL}: File already exists")
+    if os.path.isfile(os.path.join(where, name)):
+        print(f"{Fore.YELLOW}WARNING{Style.RESET_ALL}: File already exists, download has stopped!")
         return
     
     GoogleDriveDownloader.download_file_from_google_drive(file_id=file_id,
@@ -79,4 +79,4 @@ if __name__ == '__main__':
         assert args.where is not None and os.path.isdir(args.where), "Invalid file path"
         g_download(args.g_url, args.name, args.where)
 
-    print("{Fore.GREEN}program terminated successfully{Style.RESET_ALL}!")
+    print(f"{Fore.GREEN}program terminated successfully{Style.RESET_ALL}!")
