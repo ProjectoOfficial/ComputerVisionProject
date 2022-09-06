@@ -42,16 +42,19 @@ def ftp_upload(host: str, username: str, password: str, path: str):
     file.close()
     ftp.close()
 
-def g_download(url: str, name: str, where: str):
-    file_id = url.rsplit('/', 1)[-1]
-
+def g_download(url: str, name: str, where: str, unzip: bool):
     if os.path.isfile(os.path.join(where, name)):
         print(f"{Fore.YELLOW}WARNING{Style.RESET_ALL}: File already exists, download has stopped!")
+        if unzip:
+            with zipfile.ZipFile(os.path.join(where, name), 'r') as zip_ref:
+                zip_ref.extractall(os.path.join(where))
         return
     
     gdown.download(url, os.path.join(where, name), quiet=False)
-    with zipfile.ZipFile(os.path.join(where, name), 'r') as zip_ref:
-        zip_ref.extractall(os.path.join(where))
+    if unzip:
+        with zipfile.ZipFile(os.path.join(where, name), 'r') as zip_ref:
+            zip_ref.extractall(os.path.join(where))
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -63,6 +66,7 @@ if __name__ == '__main__':
     parser.add_argument('-g', '--g_url', type=str)
     parser.add_argument('-n', '--name', type=str)
     parser.add_argument('-w', '--where', type=str)
+    parser.add_argument('-z', '--unzip', type=str)
     args = parser.parse_args()
 
     print(args)
@@ -76,9 +80,10 @@ if __name__ == '__main__':
         assert args.host is not None and check_ip(args.host), "Invalid host address"
         ftp_upload(args.host, args.username, args.password, args.file)
     else:
+        assert args.unzip is not None, 'specify if you want to unzip the file'
         assert args.g_url is not None and args.g_url != "", "Invalid google drive URL"
         assert args.name is not None and args.name != "", "Invalid file name"
         assert args.where is not None and os.path.isdir(args.where), "Invalid file path"
-        g_download(args.g_url, args.name, args.where)
+        g_download(args.g_url, args.name, args.where, args.unzip)
 
     print(f"{Fore.GREEN}program terminated successfully{Style.RESET_ALL}!")
