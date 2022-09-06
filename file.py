@@ -2,7 +2,6 @@ import argparse, os
 import socket
 from ftplib import FTP 
 from tqdm import tqdm
-from google_drive_downloader import GoogleDriveDownloader
 from colorama import Fore
 from colorama import Style
 import gdown
