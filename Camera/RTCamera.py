@@ -54,7 +54,7 @@ class RTCamera(object):
         self.cap.set(cv2.CAP_PROP_EXPOSURE, self.exposure)
         self.cap.set(cv2.CAP_PROP_GAIN, 0)
 
-        self.EXPOSURE_RANGE = range(60, 75)
+        self.EXPOSURE_RANGE = range(55, 75)
         
 
     def start(self):
@@ -261,10 +261,12 @@ class RTCamera(object):
                         sum = np.array(sum).sum()
                         avg = sum / n
                     else:
-                        avg = round(frame.mean(axis=(0, 1, 2)))
+                        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2HLS)
+                        lightness = frame[..., 2]
+                        avg = round(lightness.mean())
 
                     if avg not in list(self.EXPOSURE_RANGE):
-                        print(avg)
+                        print("average luminance: {}".format(avg))
                         if avg < self.EXPOSURE_RANGE[0]:
                             self.exposure +=1
 

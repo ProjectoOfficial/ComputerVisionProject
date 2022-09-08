@@ -8,6 +8,7 @@ parent = os.path.dirname(current)
 sys.path.append(parent)
 
 import torch
+import numpy as np
 import cv2
 import time
 from datetime import datetime
@@ -20,9 +21,10 @@ from Geometry import Geometry
 from Preprocessing import Preprocessing
 from Distance import Distance
 from traffic.traffic_video import Sign_Detector, Annotator
+from Tracking import Tracking
 
 from Models.YOLOv7.yolo_test import Test
-from Models.YOLOv7.utils.general import increment_path, non_max_suppression, scale_coords, xyxy2xywh
+from Models.YOLOv7.utils.general import increment_path, non_max_suppression, scale_coords, xyxy2xywh, xywh2xyxy
 
 '''
 INSTRUCTION:
@@ -112,6 +114,8 @@ if __name__ == "__main__":
     tester = Test(WEIGHTS, BATCH_SIZE, DEVICE, save_dir)
     names = tester.model.names
 
+    tracker = Tracking()
+
     # Main infinite loop
     while True:
         frame = camera.get_frame() 
@@ -187,17 +191,20 @@ if __name__ == "__main__":
 
             if CHESSBOARD:
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                ret, corners = cv2.findChessboardCorners(gray, (7,9), cv2.CALIB_CB_ADtAPTIVE_THRESH + cv2.CALIB_CB_FAST_CHECK)
+                ret, corners = cv2.findChessboardCorners(gray, (7,9), cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_FAST_CHECK)
                 if ret:
                     cv2.drawChessboardCorners(frame, (7,9), corners, ret)
 
             if PRESSED_KEY != '':
                 PRESSED_KEY = ''
 
+            # Object Recognition
             img, _ = preprocessor.Transform_base(frame)
             img = torch.from_numpy(img).permute(2, 0, 1).unsqueeze(dim=0)
             out, train_out = tester.predict(img)
             out = non_max_suppression(out, conf_thres=CONF_THRES, iou_thres=IOU_THRES, multi_label=True)
+
+            detections = []
             for si, pred in enumerate(out):
                 predn = pred.clone()
                 ratio = ((1, 1), (0, 0))
@@ -209,10 +216,27 @@ if __name__ == "__main__":
                         xywh = [ int(x) for x in xywh ]
                         x, y, w, h = xywh
 
+                        detections.append((cls, xywh))
                         distance = Distance().get_Distance(xywh)
-                        cv2.rectangle(frame, (x, y), (x + w, y + h), (255,0,0), 2)
-                        cv2.putText(frame, "{:.2f} {} {:.2f}".format(conf, names[int(cls)], distance), (x + 5, y + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (255,0,255), 1)
+                        cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
+                        cv2.putText(frame, "{:.2f} {} {:.2f}".format(conf, names[int(cls)], distance), (x + 5, y + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (255, 0, 255), 1)
 
+            # Tracking
+            hsvframe =  cv2.cvtColor(frame, cv2.COLOR_RGB2HSV)
+            tracker.zero_objects()
+            for cls, box in detections:
+                x, y, w, h = box
+                box[0] = int(box[0] + box[2]/2)
+                box[1] = int(box[1] + box[3]/2)
+                id = tracker.update_obj(cls, box)
+
+                prediction, pts = tracker.track(hsvframe, box)
+                cv2.putText(frame, "ID: {}".format(id), (x - 60, y + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (255, 0, 255), 1)
+                cv2.putText(frame, "ID: {}".format(id), (int(prediction[0] - (0.5 * w)) + 5, int(prediction[1] - (0.5 * h)) + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (255, 0, 255), 1)
+                cv2.rectangle(frame, (int(prediction[0] - (0.5 * w)), int(prediction[1] - (0.5 * h))), (int(prediction[0] + (0.5 * w)), int(prediction[1] + (0.5 * h))), (0, 255, 0), 2)
+            tracker.clear_objects()
+
+            # traffic sign detection
             height, width, _ = frame.shape
             h = height // 4
             w = width // 3

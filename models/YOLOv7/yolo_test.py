@@ -79,7 +79,7 @@ if __name__ == '__main__':
     parser.add_argument('--augment', action='store_true', help='augmented inference')
     parser.add_argument('--batch-size', type=int, default=9, help='size of each image batch')
     parser.add_argument('--compute-loss', default=None, help='')
-    parser.add_argument('--conf-threes', type=float, default=0.001, help='object confidence threshold')
+    parser.add_argument('--conf-thres', type=float, default=0.001, help='object confidence threshold')
     parser.add_argument('--data', type=str, default=os.path.join(current, 'data', 'bdd100k'), help='*.data path')
     parser.add_argument('--device', default='0', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--exist-ok', action='store_true', help='existing project/name ok, do not increment')
@@ -125,7 +125,7 @@ if __name__ == '__main__':
 
             task = opt.task if opt.task in ('train', 'val', 'test') else 'val'  # path to train/val/test images
             valloader, valset = create_dataloader(data[task], opt.img_size, opt.batch_size, opt.stride, pad=0.5, rect=True,
-                                            prefix=colorstr(f'{task}: '))[0]
+                                            prefix=colorstr(f'{opt.task}: '))[0]
 
     tester = Test(opt.weights, opt.batch_size, opt.device, save_dir)
 
