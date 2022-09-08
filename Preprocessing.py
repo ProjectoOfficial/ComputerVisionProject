@@ -37,7 +37,7 @@ class Preprocessing():
     def Transform_base(self, frame: np.ndarray, labels: np.ndarray = np.array([])):
         '''
         Transform_base contains image transformation used both on camera and dataset images. It takes images coming
-        from different sources and and modifies them so that the output images all have the same structure
+        from different sources and modifies them so that the output images all have the same structure
         ''' 
 
         if labels.size == 0:
