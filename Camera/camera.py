@@ -1,7 +1,10 @@
 #export OPENBLAS_CORETYPE=ARMV8
+from cProfile import label
+from genericpath import isfile
 import os
 import sys
 from pathlib import Path
+import argparse
 
 current = os.path.dirname(os.path.realpath(__file__))  
 parent = os.path.dirname(current)
@@ -12,6 +15,7 @@ import numpy as np
 import cv2
 import time
 from datetime import datetime
+import csv
 
 from pynput.keyboard import Listener
 import logging
@@ -36,27 +40,11 @@ INSTRUCTION:
 
 '''
 
-CAMERA_DEVICE = 0
 PRESSED_KEY = ''
-CALIBRATE = False
 RECORDING = False
 BLUR = False
 TRANSFORMS = False
 CHESSBOARD = False
-FILENAME = "out"
-RESOLUTION = (1280, 720)
-SAVE_SIGN = True
-
-# Yolo parameters
-BATCH_SIZE = 32
-CONF_THRES= 0.001
-DEVICE = '0'
-IOU_THRES= 0.65  # for NMS
-NAME = 'camera'
-PROJECT = os.path.join(parent, 'Models', 'YOLOv7', 'runs', 'test') # save dir
-SAVE_HYBRID = False
-SAVE_TXT = False | SAVE_HYBRID
-WEIGHTS = os.path.join(parent, 'Models', 'YOLOv7', 'last.pt')
 
 # Colors
 GREEN = (0, 255, 0)
@@ -80,8 +68,30 @@ listener = Listener(on_press=on_press)
 preprocessor = Preprocessing((640, 640))
 
 if __name__ == "__main__":
-    save_dir = Path(increment_path(Path(PROJECT) / NAME, exist_ok=False))  # increment run
-    (save_dir / 'labels' if SAVE_TXT else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('-b', '--batch-size', type=int, default=1, help='YOLOv7 batch-size')
+    parser.add_argument('-c', '--calibrate', action='store_true', default=False, help='true if you want to calibrate the camera')
+    parser.add_argument('-cd', '--camera-device', type=int, default=1, help='Camera device ID')
+    parser.add_argument('-ct', '--conf-thres', type=float, default=0.001, help='YOLOv7 conf threshold')
+    parser.add_argument('-d', '--device', type=str, default='0', help='cuda device(s)')
+    parser.add_argument('-it', '--iou-thres', type=float, default=0.65, help='YOLOv7 iou threshold')
+    parser.add_argument('-f', '--filename', type=str, default='out', help='filename for recordings')
+    parser.add_argument('-j', '--jetson', action='store_true', default=False, help='true if you are using the Nvidia Jetson Nano')
+    parser.add_argument('-l', '--label', action='store_true', default=False, help='true if you want to save labelled signs')
+    parser.add_argument('-n', '--name', type=str, default='camera', help='YOLOv7 result test directory name')
+    parser.add_argument('-p', '--project', type=str, default=os.path.join(parent, 'Models', 'YOLOv7', 'runs', 'test') , help='YOLOv7 project save directory')
+    parser.add_argument('-r', '--resolution', type=tuple, default=(1280, 720), help='camera resolution')
+    parser.add_argument('-s', '--save-sign', action='store_true', default=False, help='save frames which contain signs')
+    parser.add_argument('-sh', '--save-hybrid', action='store_true', default=False, help='YOLOv7 save hybrid')
+    parser.add_argument('-st', '--save-txt', action='store_true', default=False, help='YOLOv7 save txt')
+    parser.add_argument('-w', '--weights', type=str, default=os.path.join(parent, 'Models', 'YOLOv7', 'last.pt') , help='YOLOv7 weights')
+    opt = parser.parse_args()
+
+    opt.save_txt |= opt.save_hybrid
+
+    save_dir = Path(increment_path(Path(opt.project) / opt.name, exist_ok=False))  # increment run
+    (save_dir / 'labels' if opt.save_txt else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
 
     if not os.path.isdir(os.path.join(current, "signs")):
         os.makedirs(os.path.join(current, "signs"))
@@ -92,7 +102,22 @@ if __name__ == "__main__":
     if not os.path.isdir(os.path.join(current, "Recordings")):
         os.makedirs(os.path.join(current, "Recordings"))
 
-    camera = RTCamera(CAMERA_DEVICE, fps=30, resolution=RESOLUTION, cuda=True, auto_exposure=False, rotation=cv2.ROTATE_90_COUNTERCLOCKWISE)
+    if not os.path.isdir(os.path.join(current, "ItalianSigns")):
+        os.makedirs(os.path.join(current, "ItalianSigns"))
+
+    if not os.path.isdir(os.path.join(current, "ItalianSigns" , 'images')):
+        os.makedirs(os.path.join(current, "ItalianSigns", 'images'))
+
+    if not os.path.isdir(os.path.join(current, "ItalianSigns", 'labels')):
+        os.makedirs(os.path.join(current, "ItalianSigns", 'labels'))
+
+    if not os.path.isfile(os.path.join(current, "ItalianSigns", 'labels', 'ItalianSigns.csv')):
+        f = open(os.path.join(current, "ItalianSigns", 'labels', 'ItalianSigns.csv'), 'w')
+        writer = csv.writer(f)
+        writer.writerow(["filename", "x top left", "y top left", "x bottom right",  "y bottom right", "speed limit", "valid"])
+        f.close()
+
+    camera = RTCamera(opt.camera_device, fps=30, resolution=opt.resolution, cuda=True, auto_exposure=False, rotation=cv2.ROTATE_90_COUNTERCLOCKWISE)
     camera.start()
 
     start_fps = time.time()
@@ -100,25 +125,33 @@ if __name__ == "__main__":
     listener.start()
     
     sd = Sign_Detector()
-    an = Annotator(*RESOLUTION)
+    an = Annotator(*opt.resolution)
     an.org = (20, 50)
     circles = None
     speed = 0
     updates = 0
 
-    if CALIBRATE:
+    if opt.calibrate:
         geometry = Geometry(os.path.join(current, 'Calibration'))
         calibrated, mtx, dist, rvecs, tvecs = geometry.get_calibration()
         camera.calibrate(calibrated, mtx, dist, rvecs, tvecs)
 
-    tester = Test(WEIGHTS, BATCH_SIZE, DEVICE, save_dir)
+    tester = Test(opt.weights, opt.batch_size, opt.device, save_dir)
     names = tester.model.names
 
     tracker = Tracking()
 
+    label_file = None
+    label_writer = None
+    if opt.label:
+        label_file = open(os.path.join(current, "ItalianSigns", 'labels', 'ItalianSigns.csv'), 'a')
+        label_writer = csv.writer(label_file)
+
     # Main infinite loop
     while True:
         frame = camera.get_frame() 
+        original = frame.copy()
+
         if frame is None:
             continue
 
@@ -139,7 +172,7 @@ if __name__ == "__main__":
             if PRESSED_KEY == 'r': # REGISTER/STOP RECORDING
                 if not RECORDING:
                     print("recording started...")
-                    camera.register(os.path.join(current, "Recordings", "{}__{}.mp4".format(FILENAME, datetime.now().strftime("%d_%m_%Y__%H_%M_%S"))))
+                    camera.register(os.path.join(current, "Recordings", "{}__{}.mp4".format(opt.filename, datetime.now().strftime("%d_%m_%Y__%H_%M_%S"))))
                     RECORDING = True
                 else:
                     camera.stop_recording()
@@ -198,57 +231,69 @@ if __name__ == "__main__":
             if PRESSED_KEY != '':
                 PRESSED_KEY = ''
 
-            # Object Recognition
-            img, _ = preprocessor.Transform_base(frame)
-            img = torch.from_numpy(img).permute(2, 0, 1).unsqueeze(dim=0)
-            out, train_out = tester.predict(img)
-            out = non_max_suppression(out, conf_thres=CONF_THRES, iou_thres=IOU_THRES, multi_label=True)
+            if not opt.jetson:
+                # Object Recognition
+                img, _ = preprocessor.Transform_base(frame)
+                img = torch.from_numpy(img).permute(2, 0, 1).unsqueeze(dim=0)
+                out, train_out = tester.predict(img)
+                out = non_max_suppression(out, conf_thres=opt.conf_thres, iou_thres=opt.iou_thres, multi_label=True)
 
-            detections = []
-            for si, pred in enumerate(out):
-                predn = pred.clone()
-                ratio = ((1, 1), (0, 0))
-                scale_coords(img.shape[1:], predn[:, :4], (640, 640), ratio)  # native-space pred
+                detections = []
+                for si, pred in enumerate(out):
+                    predn = pred.clone()
+                    ratio = ((1, 1), (0, 0))
+                    scale_coords(img.shape[1:], predn[:, :4], (640, 640), ratio)  # native-space pred
 
-                for *xyxy, conf, cls in predn.tolist():
-                    if conf > 0.7:
-                        xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4))).view(-1) # xywh
-                        xywh = [ int(x) for x in xywh ]
-                        x, y, w, h = xywh
+                    for *xyxy, conf, cls in predn.tolist():
+                        if conf > 0.7:
+                            xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4))).view(-1) # xywh
+                            xywh = [ int(x) for x in xywh ]
+                            x, y, w, h = xywh
 
-                        detections.append((cls, xywh))
-                        distance = Distance().get_Distance(xywh)
-                        cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
-                        cv2.putText(frame, "{:.2f} {} {:.2f}".format(conf, names[int(cls)], distance), (x + 5, y + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (255, 0, 255), 1)
+                            detections.append((cls, xywh))
+                            distance = Distance().get_Distance(xywh)
+                            cv2.rectangle(frame, (x, y), (x + w, y + h), (100, 0, 255), 2)
+                            cv2.circle(frame, (x + (w//2), y + (h//2)), 4, (40, 55, 255), 4)
+                            cv2.putText(frame, "{:.2f} {} {:.2f}".format(conf, names[int(cls)], distance), (x + 5, y + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (255, 0, 255), 1)
 
-            # Tracking
-            hsvframe =  cv2.cvtColor(frame, cv2.COLOR_RGB2HSV)
-            tracker.zero_objects()
-            for cls, box in detections:
-                x, y, w, h = box
-                box[0] = int(box[0] + box[2]/2)
-                box[1] = int(box[1] + box[3]/2)
-                id = tracker.update_obj(cls, box)
+                # Tracking
+                hsvframe =  cv2.cvtColor(frame, cv2.COLOR_RGB2HSV)
+                tracker.zero_objects()
+                for cls, box in detections:
+                    x, y, w, h = box
+                    box[0] = int(box[0] + box[2]/2)
+                    box[1] = int(box[1] + box[3]/2)
+                    id = tracker.update_obj(cls, box)
 
-                prediction, pts = tracker.track(hsvframe, box)
-                cv2.putText(frame, "ID: {}".format(id), (x - 60, y + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (255, 0, 255), 1)
-                cv2.putText(frame, "ID: {}".format(id), (int(prediction[0] - (0.5 * w)) + 5, int(prediction[1] - (0.5 * h)) + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (255, 0, 255), 1)
-                cv2.rectangle(frame, (int(prediction[0] - (0.5 * w)), int(prediction[1] - (0.5 * h))), (int(prediction[0] + (0.5 * w)), int(prediction[1] + (0.5 * h))), (0, 255, 0), 2)
-            tracker.clear_objects()
+                    prediction, pts = tracker.track(hsvframe, box)
+                    cv2.putText(frame, "ID: {}".format(id), (x - 60, y + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (255, 0, 255), 1)
+                    cv2.putText(frame, "ID: {}".format(id), (int(prediction[0] - (0.5 * w)) + 5, int(prediction[1] - (0.5 * h)) + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (255, 0, 255), 1)
+                    cv2.rectangle(frame, (int(prediction[0] - (0.5 * w)), int(prediction[1] - (0.5 * h))), (int(prediction[0] + (0.5 * w)), int(prediction[1] + (0.5 * h))), (0, 255, 0), 2)
+                tracker.clear_objects()
 
             # traffic sign detection
             height, width, _ = frame.shape
             h = height // 4
             w = width // 3
-            found, c, s, u = sd.detect(frame, h, w)
+            found, c, s, u = sd.detect(frame, h, w, show_results = False)
             if found and s != 0:
                 circles, speed, updates = c, s, u
 
                 if circles is not None:
-                    frame = an.draw_circles(frame, circles, (height, width), (height, width), (h, w))
+                    sign_bb = sd.extract_bb(circles, h, w)
+                    frame = an.draw_bb(frame, sign_bb)
+
+                    if opt.label:
+                        fname = 'frame_{}.jpg'.format(datetime.now().strftime("%d_%m_%Y__%H_%M_%S"))
+                        fpath = os.path.join(current, "ItalianSigns" , 'images', fname)
+                        if not os.path.isfile(fpath):
+                            saved = cv2.imwrite(fpath, original)
+                            if saved:
+                                sign_label = [fname, sign_bb[0][0], sign_bb[0][1], sign_bb[1][0], sign_bb[1][1], speed, 1]
+                                label_writer.writerow(sign_label)
 
                 an.write(frame, speed, updates)
-                if SAVE_SIGN:    
+                if opt.save_sign:    
                     path = os.path.join(current, 'signs', 'sign_{}.jpg'.format(datetime.now().strftime("%d_%m_%Y__%H_%M_%S")))
                     cv2.imwrite(path, frame)
                 
@@ -257,6 +302,8 @@ if __name__ == "__main__":
             cv2.putText(frame, str(fps) + " fps", (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 255, 0), 2, cv2.LINE_AA)
 
             cv2.imshow("frame", frame)
+
+    label_file.close()
     camera.stop()
     cv2.destroyAllWindows()
     print("closed")
