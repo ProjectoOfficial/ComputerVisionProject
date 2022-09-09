@@ -9,14 +9,12 @@ parent = os.path.dirname(current)
 sys.path.append(parent)
 
 import torch
-import numpy as np
 import cv2
 import time
 from datetime import datetime
 import csv
 
 from pynput.keyboard import Listener
-import logging
 
 from RTCamera import RTCamera
 from Geometry import Geometry
@@ -27,17 +25,7 @@ from Tracking import Tracking
 
 
 from Models.YOLOv7.yolo_test import Test
-from Models.YOLOv7.utils.general import increment_path, non_max_suppression, scale_coords, xyxy2xywh, xywh2xyxy
-
-'''
-INSTRUCTION:
-    1) CAMERA DEVICE is the ID of the camera that is connected to your PC (if you only have one camera set i to 0). With this param, passed to the RTCamera constructor, you can 
-        choose the camera to work with
-    2) CALIBRATE allows to calculate camera distortion and calibrate the camera automatically before catching the first frame
-    3) CHESSBOARD activates chessboard identification in a frame
-    4) FILENAME is the name that this script will use to store the video recording 
-
-'''
+from Models.YOLOv7.utils.general import increment_path, non_max_suppression, scale_coords, xyxy2xywh
 
 PRESSED_KEY = ''
 RECORDING = False
@@ -46,15 +34,6 @@ TRANSFORMS = False
 CHESSBOARD = False
 ROTATION = None
 
-# Colors
-GREEN = (0, 255, 0)
-RED = (0, 0, 255)
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-
-# defining the fonts
-fonts = cv2.FONT_HERSHEY_COMPLEX
-
 def on_press(key):
     global PRESSED_KEY
     if hasattr(key, 'char'):
@@ -62,9 +41,7 @@ def on_press(key):
             if key.char in "qrgescibtf": # add here a letter if you want to insert a new command
                 PRESSED_KEY = key.char
 
-logging.getLogger("imported_module").setLevel(logging.ERROR)
 listener = Listener(on_press=on_press)
-
 preprocessor = Preprocessing((640, 640))
 
 if __name__ == "__main__":
@@ -72,7 +49,7 @@ if __name__ == "__main__":
 
     parser.add_argument('-b', '--batch-size', type=int, default=1, help='YOLOv7 batch-size')
     parser.add_argument('-c', '--calibrate', action='store_true', default=False, help='true if you want to calibrate the camera')
-    parser.add_argument('-cd', '--camera-device', type=int, default=1, help='Camera device ID')
+    parser.add_argument('-cd', '--camera-device', type=int, default=0, help='Camera device ID')
     parser.add_argument('-ct', '--conf-thres', type=float, default=0.001, help='YOLOv7 conf threshold')
     parser.add_argument('-d', '--device', type=str, default='0', help='cuda device(s)')
     parser.add_argument('-it', '--iou-thres', type=float, default=0.65, help='YOLOv7 iou threshold')
@@ -147,7 +124,6 @@ if __name__ == "__main__":
     if not opt.jetson:
         tester = Test(opt.weights, opt.batch_size, opt.device, save_dir)
         names = tester.model.names
-
         tracker = Tracking()
 
     label_file = None
@@ -160,19 +136,16 @@ if __name__ == "__main__":
     while True:
         frame = camera.get_frame() 
 
-        if frame is None:
-            continue
-
-        if frame.size == 0:
-            continue
-
-        original = frame.copy()
         if camera.available():
+            original = frame.copy()
+
             if time.monotonic() - start_fps > 1:
                 fps = camera.get_fps()
                 start_fps = time.monotonic()
 
             if PRESSED_KEY == 'q': # QUIT
+                if label_file is not None:
+                    label_file.close()
                 listener.stop()
                 listener.join()
                 print("closing!")
@@ -301,7 +274,6 @@ if __name__ == "__main__":
                                 sign_label = [fname, sign_bb[0][0], sign_bb[0][1], sign_bb[1][0], sign_bb[1][1], speed, 1]
                                 label_writer.writerow(sign_label)
 
-                an.write(frame, speed, updates)
                 if opt.save_sign:    
                     path = os.path.join(current, 'signs', 'sign_{}.jpg'.format(datetime.now().strftime("%d_%m_%Y__%H_%M_%S")))
                     cv2.imwrite(path, frame)
@@ -310,9 +282,6 @@ if __name__ == "__main__":
             cv2.putText(frame, str(fps) + " fps", (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 255, 0), 2, cv2.LINE_AA)
             cv2.imshow("frame", frame)
 
-    if label_file is not None:
-        label_file.close()
     camera.stop()
-    listener.stop()
     cv2.destroyAllWindows()
     print("closed")

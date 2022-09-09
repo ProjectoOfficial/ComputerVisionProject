@@ -155,7 +155,7 @@ class RTCamera(object):
         '''
         it returns if the camera is available
         '''
-        return self.frame is not None
+        return (self.frame is not None) and (self.frame.size != 0) and self.cap.isOpened()
 
     def register(self, filename:str):
         '''
@@ -188,7 +188,7 @@ class RTCamera(object):
         this method calculates the framerate
         '''
         fps = 0
-        if len(self.fps_times) >= self.fps_frames:
+        if len(self.fps_times) > self.fps_frames:
             total = (self.fps_times[1:] - self.fps_times[:self.fps_frames]).sum()
             fps = 1//(total/(self.fps_frames))
             
