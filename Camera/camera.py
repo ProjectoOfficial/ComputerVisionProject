@@ -1,6 +1,4 @@
 #export OPENBLAS_CORETYPE=ARMV8
-from cProfile import label
-from genericpath import isfile
 import os
 import sys
 from pathlib import Path
@@ -27,6 +25,7 @@ from Distance import Distance
 from traffic.traffic_video import Sign_Detector, Annotator
 from Tracking import Tracking
 
+
 from Models.YOLOv7.yolo_test import Test
 from Models.YOLOv7.utils.general import increment_path, non_max_suppression, scale_coords, xyxy2xywh, xywh2xyxy
 
@@ -45,6 +44,7 @@ RECORDING = False
 BLUR = False
 TRANSFORMS = False
 CHESSBOARD = False
+ROTATION = None
 
 # Colors
 GREEN = (0, 255, 0)
@@ -82,6 +82,7 @@ if __name__ == "__main__":
     parser.add_argument('-n', '--name', type=str, default='camera', help='YOLOv7 result test directory name')
     parser.add_argument('-p', '--project', type=str, default=os.path.join(parent, 'Models', 'YOLOv7', 'runs', 'test') , help='YOLOv7 project save directory')
     parser.add_argument('-r', '--resolution', type=tuple, default=(1280, 720), help='camera resolution')
+    parser.add_argument('-rt', '--rotate', action='store_true', default=False, help='rotate frame for e-con camera')
     parser.add_argument('-s', '--save-sign', action='store_true', default=False, help='save frames which contain signs')
     parser.add_argument('-sh', '--save-hybrid', action='store_true', default=False, help='YOLOv7 save hybrid')
     parser.add_argument('-st', '--save-txt', action='store_true', default=False, help='YOLOv7 save txt')
@@ -89,6 +90,9 @@ if __name__ == "__main__":
     opt = parser.parse_args()
 
     opt.save_txt |= opt.save_hybrid
+
+    if opt.rotate:
+        ROTATION = cv2.ROTATE_90_COUNTERCLOCKWISE
 
     save_dir = Path(increment_path(Path(opt.project) / opt.name, exist_ok=False))  # increment run
     (save_dir / 'labels' if opt.save_txt else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
@@ -117,10 +121,10 @@ if __name__ == "__main__":
         writer.writerow(["filename", "x top left", "y top left", "x bottom right",  "y bottom right", "speed limit", "valid"])
         f.close()
 
-    camera = RTCamera(opt.camera_device, fps=30, resolution=opt.resolution, cuda=True, auto_exposure=False, rotation=cv2.ROTATE_90_COUNTERCLOCKWISE)
+    camera = RTCamera(opt.camera_device, fps=30, resolution=opt.resolution, cuda=True, auto_exposure=False, rotation=ROTATION)
     camera.start()
 
-    start_fps = time.time()
+    start_fps = time.monotonic()
     fps = 0
     listener.start()
     
@@ -136,10 +140,15 @@ if __name__ == "__main__":
         calibrated, mtx, dist, rvecs, tvecs = geometry.get_calibration()
         camera.calibrate(calibrated, mtx, dist, rvecs, tvecs)
 
-    tester = Test(opt.weights, opt.batch_size, opt.device, save_dir)
-    names = tester.model.names
+    tester = None
+    names = None
+    tracker = None
 
-    tracker = Tracking()
+    if not opt.jetson:
+        tester = Test(opt.weights, opt.batch_size, opt.device, save_dir)
+        names = tester.model.names
+
+        tracker = Tracking()
 
     label_file = None
     label_writer = None
@@ -150,7 +159,6 @@ if __name__ == "__main__":
     # Main infinite loop
     while True:
         frame = camera.get_frame() 
-        original = frame.copy()
 
         if frame is None:
             continue
@@ -158,10 +166,11 @@ if __name__ == "__main__":
         if frame.size == 0:
             continue
 
+        original = frame.copy()
         if camera.available():
-            if time.time() - start_fps > 1:
+            if time.monotonic() - start_fps > 1:
                 fps = camera.get_fps()
-                start_fps = time.time()
+                start_fps = time.monotonic()
 
             if PRESSED_KEY == 'q': # QUIT
                 listener.stop()
@@ -169,7 +178,7 @@ if __name__ == "__main__":
                 print("closing!")
                 break
 
-            if PRESSED_KEY == 'r': # REGISTER/STOP RECORDING
+            elif PRESSED_KEY == 'r': # REGISTER/STOP RECORDING
                 if not RECORDING:
                     print("recording started...")
                     camera.register(os.path.join(current, "Recordings", "{}__{}.mp4".format(opt.filename, datetime.now().strftime("%d_%m_%Y__%H_%M_%S"))))
@@ -179,39 +188,39 @@ if __name__ == "__main__":
                     print("recording stopped!")
                     RECORDING = False
 
-            if PRESSED_KEY == 'g' and not RECORDING: # CHANGE GAIN
+            elif PRESSED_KEY == 'g' and not RECORDING: # CHANGE GAIN
                 gain = int(input("please insert the gain: "))
                 camera.set_gain(gain)
 
-            if PRESSED_KEY == 'e' and not RECORDING: # CHANGE EXPOSURE
+            elif PRESSED_KEY == 'e' and not RECORDING: # CHANGE EXPOSURE
                 exp = int(input("please insert the exposure: "))
                 camera.set_exposure(exp)
 
-            if PRESSED_KEY == 's' and not RECORDING: # SAVE CURRENT FRAME
+            elif PRESSED_KEY == 's' and not RECORDING: # SAVE CURRENT FRAME
                 path = os.path.join(current, 'Calibration', 'frame_{}.jpg'.format(datetime.now().strftime("%d_%m_%Y__%H_%M_%S")))
                 camera.save_frame(path)
 
                 print("saved frame {} ".format(path))
 
-            if PRESSED_KEY == 'c' and not RECORDING: # CALIBRATE CAMERA
+            elif PRESSED_KEY == 'c' and not RECORDING: # CALIBRATE CAMERA
                 print("Calibration in process, please wait...\n")
                 cv2.destroyAllWindows()
                 geometry = Geometry(os.path.join(current, 'Calibration'))
                 calibrated, mtx, dist, rvecs, tvecs = geometry.get_calibration()
                 camera.calibrate(calibrated, mtx, dist, rvecs, tvecs)
 
-            if PRESSED_KEY == 'i': # SHOW MEAN VALUE OF CURRENT FRAME
+            elif PRESSED_KEY == 'i': # SHOW MEAN VALUE OF CURRENT FRAME
                 print("Frame AVG value: {}".format(frame.mean(axis=(0, 1, 2))))
 
-            if PRESSED_KEY == 'b': # BLUR FRAME
+            elif PRESSED_KEY == 'b': # BLUR FRAME
                 BLUR = not BLUR
                 print("blur: {}".format(BLUR))
 
-            if PRESSED_KEY == 't' and not RECORDING: # APPLY TRANSFORMS TO FRAME
+            elif PRESSED_KEY == 't' and not RECORDING: # APPLY TRANSFORMS TO FRAME
                 TRANSFORMS = not TRANSFORMS
                 print("transform: {}".format(TRANSFORMS))
 
-            if PRESSED_KEY == 'f' and not RECORDING: # SHOW CHESSBOARD
+            elif PRESSED_KEY == 'f' and not RECORDING: # SHOW CHESSBOARD
                 CHESSBOARD = not CHESSBOARD
                 print("Chessboard: {}".format(CHESSBOARD))
                 cv2.destroyAllWindows()
@@ -298,12 +307,12 @@ if __name__ == "__main__":
                     cv2.imwrite(path, frame)
                 
             an.write(frame, speed, updates)
-
             cv2.putText(frame, str(fps) + " fps", (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 255, 0), 2, cv2.LINE_AA)
-
             cv2.imshow("frame", frame)
 
-    label_file.close()
+    if label_file is not None:
+        label_file.close()
     camera.stop()
+    listener.stop()
     cv2.destroyAllWindows()
     print("closed")
