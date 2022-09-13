@@ -73,66 +73,41 @@ class Test():
 
         return out, train_out
 
-if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser(prog='yolo_test.py')
-    parser.add_argument('--augment', action='store_true', help='augmented inference')
-    parser.add_argument('--batch-size', type=int, default=9, help='size of each image batch')
-    parser.add_argument('--compute-loss', default=None, help='')
-    parser.add_argument('--conf-thres', type=float, default=0.001, help='object confidence threshold')
-    parser.add_argument('--data', type=str, default=os.path.join(current, 'data', 'bdd100k'), help='*.data path')
-    parser.add_argument('--device', default='0', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
-    parser.add_argument('--exist-ok', action='store_true', help='existing project/name ok, do not increment')
-    parser.add_argument('--hyp', type=str, default=os.path.join(current, 'data', 'hyp.scratch.p5.yaml'), help='')
-    parser.add_argument('--image-weights', type=bool, default=False, help='')
-    parser.add_argument('--img-size', type=int, default=640, help='inference size (pixels)')
-    parser.add_argument('--is-coco', type=bool, default=False, help='')
-    parser.add_argument('--iou-thres', type=float, default=0.65, help='IOU threshold for NMS')
-    parser.add_argument('--name', type=str, default='custom', help='')
-    parser.add_argument('--no-trace', action='store_true', help='don`t trace model')
-    parser.add_argument('--plots',  action='store_true', help='')
-    parser.add_argument('--project', default=os.path.join(current, 'runs', 'test'), help='save to project/name')
-    parser.add_argument('--save-txt', default=False, action='store_true', help='save results to *.txt')
-    parser.add_argument('--save-hybrid', default=False, action='store_true', help='save label+prediction hybrid results to *.txt')
-    parser.add_argument('--save-conf', default=True, action='store_true', help='save confidences in --save-txt labels')
-    parser.add_argument('--save-json', default=True, action='store_true', help='save a cocoapi-compatible JSON results file')
-    parser.add_argument('--single-cls', action='store_true', help='treat as single-class dataset')
-    parser.add_argument('--stride', type=int, default=32, help='')
-    parser.add_argument('--task', default='val', help='train, val, test, speed or study')
-    parser.add_argument('--verbose', default=True, action='store_true', help='report mAP by class')
-    parser.add_argument('--weights', nargs='+', type=str, default=os.path.join(current, 'last.pt'),
-                        help='model.pt path(s)')
-    parser.add_argument('--workers', type=int, default=6, help='')
-    opt = parser.parse_args()
+def main(opt):
 
     # Set save directory
     save_dir = Path(increment_path(Path(opt.project) / opt.name, exist_ok=False))  # increment run
     (save_dir / 'labels' if opt.save_txt else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
-    
+
     if isinstance(opt.data, str):
         opt.is_coco = opt.data.endswith('coco.yaml')
-    
+
     if not opt.is_coco:
         data_size = (1280, 720)
         preprocessor = Preprocessing((opt.img_size, opt.img_size))
-        valset = BDDDataset(opt.data, opt.task, opt.hyp, data_size, preprocessor=preprocessor, mosaic=False, augment=False, rect=True, image_weights = opt.image_weights, stride=opt.stride,
-        batch_size=opt.batch_size, concat_coco_names=False)
-        valloader = torch.utils.data.DataLoader(valset, opt.batch_size, collate_fn=BDDDataset.collate_fn, num_workers=opt.workers)
+        valset = BDDDataset(opt.data, opt.task, opt.hyp, data_size, preprocessor=preprocessor, mosaic=False,
+                            augment=False, rect=True, image_weights=opt.image_weights, stride=opt.stride,
+                            batch_size=opt.batch_size, concat_coco_names=False)
+        valloader = torch.utils.data.DataLoader(valset, opt.batch_size, collate_fn=BDDDataset.collate_fn,
+                                                num_workers=opt.workers)
     else:
         with open(opt.data) as f:
             data = yaml.load(f, Loader=yaml.SafeLoader)
             check_dataset(data)  # check
 
             task = opt.task if opt.task in ('train', 'val', 'test') else 'val'  # path to train/val/test images
-            valloader, valset = create_dataloader(data[task], opt.img_size, opt.batch_size, opt.stride, pad=0.5, rect=True,
-                                            prefix=colorstr(f'{opt.task}: '))[0]
+            valloader, valset = \
+            create_dataloader(data[task], opt.img_size, opt.batch_size, opt.stride, pad=0.5, rect=True,
+                              prefix=colorstr(f'{opt.task}: '))[0]
 
     tester = Test(opt.weights, opt.batch_size, opt.device, save_dir)
 
     seen = 0
     confusion_matrix = ConfusionMatrix(nc=tester.nc)
     coco91class = coco80_to_coco91_class()
-    names =  {k: v for k, v in enumerate(tester.model.names if hasattr(tester.model, 'names') else tester.model.module.names)}
+    names = {k: v for k, v in
+             enumerate(tester.model.names if hasattr(tester.model, 'names') else tester.model.module.names)}
 
     iouv = torch.linspace(0.5, 0.95, 10).to(tester.device)  # iou vector for mAP@0.5:0.95
     niou = iouv.numel()
@@ -158,7 +133,8 @@ if __name__ == '__main__':
             targets[:, 2:] *= torch.Tensor([width, height, width, height]).to(tester.device)  # to pixels
             lb = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if opt.save_hybrid else []  # for autolabelling
             t = time_synchronized()
-            out = non_max_suppression(out, conf_thres=opt.conf_thres, iou_thres=opt.iou_thres, labels=lb, multi_label=True)
+            out = non_max_suppression(out, conf_thres=opt.conf_thres, iou_thres=opt.iou_thres, labels=lb,
+                                      multi_label=True)
             t1 += time_synchronized() - t
 
         # Statistics per image
@@ -186,7 +162,7 @@ if __name__ == '__main__':
                     line = (cls, *xywh, conf) if opt.save_conf else (cls, *xywh)  # label format
                     with open(save_dir / 'labels' / (path.stem + '.txt'), 'a') as f:
                         f.write(('%g ' * len(line)).rstrip() % line + '\n')
-            
+
             # Append to pycocotools JSON dictionary
             if opt.save_json:
                 # [{"image_id": 42, "category_id": 18, "bbox": [258.15, 41.29, 348.26, 243.78], "score": 0.236}, ...
@@ -228,7 +204,7 @@ if __name__ == '__main__':
                         if d.item() not in detected_set:
                             detected_set.add(d.item())
                             detected.append(d)
-                            correct[pi[j]] = ious[j] > iouv  #opt.iou_thres is 1xn
+                            correct[pi[j]] = ious[j] > iouv  # opt.iou_thres is 1xn
                             if len(detected) == nl:  # all targets already located in image
                                 break
 
@@ -241,7 +217,7 @@ if __name__ == '__main__':
             Thread(target=plot_images, args=(img, targets, paths, f, names), daemon=True).start()
             f = save_dir / f'test_batch{batch_i}_pred.jpg'  # predictions
             Thread(target=plot_images, args=(img, output_to_target(out), paths, f, names), daemon=True).start()
-    
+
     # Compute statistics
     stats = [np.concatenate(x, 0) for x in zip(*stats)]  # to numpy
     if len(stats) and stats[0].any():
@@ -269,7 +245,8 @@ if __name__ == '__main__':
         confusion_matrix.plot(save_dir=save_dir, names=list(names.values()))
 
     if opt.save_json and len(jdict):
-        w = Path(opt.weights[0] if isinstance(opt.weights, list) else opt.weights).stem if opt.weights is not None else ''  # opt.weights
+        w = Path(opt.weights[0] if isinstance(opt.weights,
+                                              list) else opt.weights).stem if opt.weights is not None else ''  # opt.weights
         anno_json = './coco/annotations/instances_val2017.json'  # annotations json
         pred_json = str(save_dir / f"{w}_predictions.json")  # predictions json
         print('\nEvaluating pycocotools mAP... saving %s...' % pred_json)
@@ -299,5 +276,39 @@ if __name__ == '__main__':
     maps = np.zeros(tester.nc) + map
     for i, c in enumerate(ap_class):
         maps[c] = ap[i]
-    
-    #return (mp, mr, map50, map, *(loss.cpu() / len(valloader)).tolist()), maps, t
+
+    # return (mp, mr, map50, map, *(loss.cpu() / len(valloader)).tolist()), maps, t
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(prog='yolo_test.py')
+    parser.add_argument('--augment', action='store_true', help='augmented inference')
+    parser.add_argument('--batch-size', type=int, default=9, help='size of each image batch')
+    parser.add_argument('--compute-loss', default=None, help='')
+    parser.add_argument('--conf-thres', type=float, default=0.001, help='object confidence threshold')
+    parser.add_argument('--data', type=str, default=os.path.join(current, 'data', 'bdd100k'), help='*.data path')
+    parser.add_argument('--device', default='0', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
+    parser.add_argument('--exist-ok', action='store_true', help='existing project/name ok, do not increment')
+    parser.add_argument('--hyp', type=str, default=os.path.join(current, 'data', 'hyp.scratch.p5.yaml'), help='')
+    parser.add_argument('--image-weights', type=bool, default=False, help='')
+    parser.add_argument('--img-size', type=int, default=640, help='inference size (pixels)')
+    parser.add_argument('--is-coco', type=bool, default=False, help='')
+    parser.add_argument('--iou-thres', type=float, default=0.65, help='IOU threshold for NMS')
+    parser.add_argument('--name', type=str, default='custom', help='')
+    parser.add_argument('--no-trace', action='store_true', help='don`t trace model')
+    parser.add_argument('--plots',  action='store_true', help='')
+    parser.add_argument('--project', default=os.path.join(current, 'runs', 'test'), help='save to project/name')
+    parser.add_argument('--save-txt', default=False, action='store_true', help='save results to *.txt')
+    parser.add_argument('--save-hybrid', default=False, action='store_true', help='save label+prediction hybrid results to *.txt')
+    parser.add_argument('--save-conf', default=True, action='store_true', help='save confidences in --save-txt labels')
+    parser.add_argument('--save-json', default=True, action='store_true', help='save a cocoapi-compatible JSON results file')
+    parser.add_argument('--single-cls', action='store_true', help='treat as single-class dataset')
+    parser.add_argument('--stride', type=int, default=32, help='')
+    parser.add_argument('--task', default='val', help='train, val, test, speed or study')
+    parser.add_argument('--verbose', default=True, action='store_true', help='report mAP by class')
+    parser.add_argument('--weights', nargs='+', type=str, default=os.path.join(current, 'last.pt'),
+                        help='model.pt path(s)')
+    parser.add_argument('--workers', type=int, default=6, help='')
+    opt = parser.parse_args()
+
+    main(opt)
