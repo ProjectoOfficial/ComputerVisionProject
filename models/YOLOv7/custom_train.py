@@ -237,7 +237,7 @@ def train(opt):
         # Epochs
         start_epoch = ckpt['epoch'] + 1
         if opt.resume:
-            assert start_epoch > 0, '%s training to %g epochs is finished, nothing to resume.' % (weights, opt.epochs)
+            assert start_epoch > 0, '%s training to %g epochs is finished, nothing to resume.' % (opt.weights, opt.epochs)
         if opt.epochs < start_epoch:
             logger.info('%s has been trained for %g epochs. Fine-tuning for %g additional epochs.' %
                         (weights, ckpt['epoch'], opt.epochs))
