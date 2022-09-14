@@ -17,3 +17,5 @@ yolov7_training.pt
 last.pt
 italiansigns.csv
 out*
+50EPOCHE.pt
+60EPOCHE.pt
