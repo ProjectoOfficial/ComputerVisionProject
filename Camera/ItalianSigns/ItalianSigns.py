@@ -28,14 +28,18 @@ if __name__ == "__main__":
     for (dirpath, dirname, filenames) in os.walk(os.path.join(current, "images")):
         for fname in filenames:    
             frame = cv2.imread(os.path.join(current, "images", fname))
+            original = frame.copy()
             
             height, width, _ = frame.shape
             h = height // 4
-            w = width // 10*4 #~40%
+            w = width // 3
             an = Annotator(width, height)
             an.org = (20, 50)
 
-            frame = cv2.line(frame, (w, 0), (w, height), (255, 0, 0), 2)
+            #frame = frame[h : round(h*3), w : , :]
+            frame = cv2.line(frame, (w, h), (width, h), (255, 0, 0), 2)
+            frame = cv2.line(frame, (w, h), (w, round(h*3)), (255, 0, 0), 2)
+            frame = cv2.line(frame, (w, round(h*3)), (width, round(h*3)), (255, 0, 0), 2)
 
             speed, bbox, valid = None, None, None
             if fname in labels.keys():
@@ -43,15 +47,25 @@ if __name__ == "__main__":
                 bbox = ((int(bbox[0]), int(bbox[1])),(int(bbox[2]), int(bbox[3])))
                 speed = int(labels[fname][4])
                 valid = int(labels[fname][5])
-            else:
-                found, circles, speed, updates = sd.detect(frame, h, w, show_results = False)
-                bbox = sd.extract_bb(circles, h, w)
+            
+            found, circles, speed, updates = sd.detect(frame, h, w, show_results = False)
+            sdbbox = sd.extract_bb(circles, h, w)
 
             if bbox is not None:
                 frame = an.draw_bb(frame, bbox)
-                cv2.putText(frame, "speed: {}".format(speed), (10,40), cv2.FONT_HERSHEY_COMPLEX, 1.6 , (255,0,0), 3, cv2.LINE_AA, False)
+                cv2.putText(frame, "speed: {}".format(speed), (10,40), cv2.FONT_HERSHEY_COMPLEX, 1.6 , (0, 255, 255), 3, cv2.LINE_AA, False)
+
+            if sdbbox is not None:
+                frame = an.draw_bb(frame, sdbbox, (255, 0, 0), 2)
+                cv2.putText(frame, "sd speed: {}".format(speed), (10,150), cv2.FONT_HERSHEY_COMPLEX, 1.6 , (255,0,0), 2, cv2.LINE_AA, False)
 
             cv2.imshow("frame", frame)
-            if cv2.waitKey(0) == ord('q'):
+            key = cv2.waitKey(0)
+            if key == ord('q'):
                 sys.exit(0)
+            elif key == ord('s'):
+                speed = input("please insert the correct speed: ")
+            elif key == ord('d'): # discard
+                valid = 0
+
             cv2.destroyAllWindows()
