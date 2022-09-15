@@ -89,11 +89,14 @@ if __name__ == "__main__":
     if not os.path.isdir(os.path.join(current, "ItalianSigns" , 'images')):
         os.makedirs(os.path.join(current, "ItalianSigns", 'images'))
 
+    if not os.path.isdir(os.path.join(current, "ItalianSigns" , 'rawimages')):
+        os.makedirs(os.path.join(current, "ItalianSigns", 'rawimages'))
+
     if not os.path.isdir(os.path.join(current, "ItalianSigns", 'labels')):
         os.makedirs(os.path.join(current, "ItalianSigns", 'labels'))
 
-    if not os.path.isfile(os.path.join(current, "ItalianSigns", 'labels', 'ItalianSigns.csv')):
-        f = open(os.path.join(current, "ItalianSigns", 'labels', 'ItalianSigns.csv'), 'w')
+    if not os.path.isfile(os.path.join(current, "ItalianSigns", 'labels', 'RawSigns.csv')):
+        f = open(os.path.join(current, "ItalianSigns", 'labels', 'RawSigns.csv'), 'w')
         writer = csv.writer(f)
         writer.writerow(["filename", "x top left", "y top left", "x bottom right",  "y bottom right", "speed limit", "valid"])
         f.close()
@@ -129,7 +132,7 @@ if __name__ == "__main__":
     label_file = None
     label_writer = None
     if opt.label:
-        label_file = open(os.path.join(current, "ItalianSigns", 'labels', 'ItalianSigns.csv'), 'a')
+        label_file = open(os.path.join(current, "ItalianSigns", 'labels', 'RawSigns.csv'), 'a')
         label_writer = csv.writer(label_file)
 
     # Main infinite loop
@@ -267,7 +270,7 @@ if __name__ == "__main__":
 
                     if opt.label:
                         fname = 'frame_{}.jpg'.format(datetime.now().strftime("%d_%m_%Y__%H_%M_%S"))
-                        fpath = os.path.join(current, "ItalianSigns" , 'images', fname)
+                        fpath = os.path.join(current, "ItalianSigns" , 'rawimages', fname)
                         if not os.path.isfile(fpath):
                             saved = cv2.imwrite(fpath, original)
                             if saved:
