@@ -1,6 +1,5 @@
 import os
 import sys
-from pathlib import Path
 import numpy as np
 import shutil
 
@@ -88,7 +87,7 @@ def make_dataset():
                     if bbox is None:
                         bbox = sdbbox
                         
-            cv2.imshow("frame", frame)
+            cv2.imshow("frame", cv2.resize(frame,(1280, 720)))
             valid = 0
 
             key = cv2.waitKey(0)
@@ -150,6 +149,7 @@ def test(show:bool=False):
     for (dirpath, dirname, filenames) in os.walk(os.path.join(current, "images")):
         for fname in filenames:
             frame = cv2.imread(os.path.join(current, "images", fname))
+            original = frame.copy()
 
             height, width, _ = frame.shape
             h = height // 4
@@ -172,7 +172,7 @@ def test(show:bool=False):
             frame = an.draw_bb(frame, bbox, (0, 255, 255), 3)
             cv2.putText(frame, "gt speed: {}".format(speed), (10, 50), cv2.FONT_HERSHEY_COMPLEX, 1.6 , (0, 255,255), 2, cv2.LINE_AA, False)
 
-            found, circles, sdspeed, updates = sd.detect(frame, h, w, show_results = False)
+            found, circles, sdspeed, updates = sd.detect(original, h, w, show_results = False)
             sdbbox = sd.extract_bb(circles, h, w)
             y.append(sdspeed)
 
@@ -204,7 +204,8 @@ if __name__ == "__main__":
     parser.add_argument('-v', '--verbose', action='store_true', default=False, help='verbosity')
         
     opt = parser.parse_args()
-    opt.test = True
+    opt.dataset = True
+    #opt.test = True
     if opt.test:
         test(opt.verbose)
     elif opt.dataset:

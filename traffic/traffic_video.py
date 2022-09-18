@@ -52,14 +52,25 @@ class Preprocessor():
     pass
   def prep(self, img: np.ndarray) -> np.ndarray:
     #cv.imshow('Resized Image',img)
-    img2 = cv.GaussianBlur(img, (3, 3), 0)
-    img2 = cv.cvtColor(img2, cv.COLOR_BGR2HSV)
-    temp = np.logical_and(img2[:, :, 0] > 11, img2[:, :, 0] < 169)  #colors not red
-    img2[temp, 2] = 0
-    h, w, _ = img2.shape
+    img2 = cv.medianBlur(img, ksize=5)
+    hls = cv.cvtColor(img2, cv.COLOR_BGR2HLS)
+    
+    lower = np.array([155,25,0])
+    upper = np.array([179,255,255])
+
+    mask = cv.inRange(hls, lower, upper)
+    temp = cv.bitwise_and(hls, hls, mask=mask)
+
+    img2[np.where(temp==0)] = 0
+
     h, w, _ = img2.shape
     gray_img = np.reshape(img2[:, :, 2], (h, w)) #from HSV to GRAYSCALE
-    return gray_img
+    gray_img = cv.copyMakeBorder(gray_img, 10, 10, 10, 10, cv.BORDER_CONSTANT, None, value = 0)
+    _, binary = cv.threshold(gray_img, 127, 255, cv.THRESH_BINARY)
+    closing = cv.morphologyEx(binary, cv.MORPH_CLOSE, np.ones((4, 4), np.uint8), iterations=1)
+    dilated = cv.dilate(closing, np.ones((4, 4), np.uint8), iterations=2)
+
+    return cv.bitwise_and(gray_img, gray_img, mask=closing)
 
 """
 Detector class, in which we perform the Canny Edge Detection and the Circles detection via the Hough Transform
@@ -76,6 +87,7 @@ class Detector():
     self.minRadiusRatio = minRadiusRatio
     self.maxRadiusRatio = maxRadiusRatio
   #single-channel image
+  
   def detect(self, gray_img: np.ndarray, print_canny : bool= False):
     if print_canny:
       cv.imwrite(ROOT_DIR + '\\canny_edges.jpg', cv.Canny(gray_img, self.param1, self.param1//2))
@@ -115,6 +127,7 @@ class Matcher():
                 img = cv.resize(img, dim, interpolation = cv.INTER_AREA)
                 gray= cv.cvtColor(img,cv.COLOR_BGR2GRAY)
                 _, gray = cv.threshold(gray, 0, 255, cv.THRESH_BINARY+cv.THRESH_OTSU)
+                gray = cv.bitwise_not(gray)
                 kp = self.det.detect(gray,None)
                 kp, des = self.det.compute(gray, kp)
                 kp_list.append(kp)
@@ -133,13 +146,14 @@ class Matcher():
     sign = cv.resize(sign, self.dims[0], interpolation = cv.INTER_LINEAR_EXACT)
     gray = sign[:,:,2]
     _, gray = cv.threshold(gray, 0, 255, cv.THRESH_BINARY+cv.THRESH_OTSU)
+    gray = cv.bitwise_not(gray)
 
-    mask = cv.inRange(sign, (0,0,0), (35, 35, 35))
-    gray = gray - cv.bitwise_not(mask) * 255
+    mask = cv.inRange(sign, (0,0,0), (60, 60, 60))
+    gray = cv.bitwise_and(gray, gray, mask=mask)
     gray = cv.erode(gray, kernel=np.ones((3, 3), np.uint8), iterations=1)
 
     det = cv.SIFT_create() if self.sift else cv.ORB_create()
-    kp = det.detect(gray,None)
+    kp = det.detect(gray, None)
     # compute the descriptors with ORB
     kp, key_ps = det.compute(gray, kp)
     alpha = 0.8
@@ -285,8 +299,9 @@ class Sign_Detector():
     for i in circles[0,:]:
       center = (i[0] + w, i[1] + h)
       
-      margin = (i[2] - (i[2] * (math.pi/4))) / 4
-      axes = (i[2]* (math.pi/4) + margin, i[2] * (math.pi/4) + margin)
+      #margin = (i[2] - (i[2] * (math.pi/4))) / 4
+      #axes = (i[2]* (math.pi/4) + margin, i[2] * (math.pi/4) + margin)
+      axes = (i[2], i[2])
 
       center = np.uint(np.around(center))
       axes = np.uint(np.around(axes))
@@ -306,8 +321,9 @@ class Sign_Detector():
       for i in circles[0,:]:
         center = (i[0] + w, i[1] + h)
         
-        margin = (i[2] - (i[2] * (math.pi/4))) / 4
-        axes = (i[2]* (math.pi/4) + margin, i[2] * (math.pi/4) + margin)
+        #margin = (i[2] - (i[2] * (math.pi/4))) / 4
+        #axes = (i[2]* (math.pi/4) + margin, i[2] * (math.pi/4) + margin)
+        axes = (i[2], i[2])
 
         center = np.uint(np.around(center))
         axes = np.uint(np.around(axes))
@@ -363,7 +379,7 @@ def save_circles_from_video(sd: Sign_Detector, img: np.ndarray, circles:np.ndarr
 
 
 def main():
-  filename = os.path.join(ROOT_DIR, 'photos', '0.jpg')
+  filename = os.path.join(ROOT_DIR, 'photos', '2.jpg')
   #filename = 'C:\\Users\\ricca\\OneDrive\\Desktop\\scazzo\\traffic\\photos\\IMG_20220731_153050.jpg'
   sd = Sign_Detector()
 
