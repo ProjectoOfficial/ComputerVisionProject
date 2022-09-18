@@ -6,6 +6,7 @@ import os
 import shutil
 from typing import Union, Tuple
 from pathlib import Path
+import math
 path_root = Path(__file__).parents[1]
 #print(path_root)
 sys.path.append(str(path_root))
@@ -130,8 +131,13 @@ class Matcher():
   # detected sign
   def match(self, sign: np.ndarray, show_scores = False) -> int:
     sign = cv.resize(sign, self.dims[0], interpolation = cv.INTER_LINEAR_EXACT)
-    gray= cv.cvtColor(sign,cv.COLOR_BGR2GRAY)
+    gray = sign[:,:,2]
     _, gray = cv.threshold(gray, 0, 255, cv.THRESH_BINARY+cv.THRESH_OTSU)
+
+    mask = cv.inRange(sign, (0,0,0), (35, 35, 35))
+    gray = gray - cv.bitwise_not(mask) * 255
+    gray = cv.erode(gray, kernel=np.ones((3, 3), np.uint8), iterations=1)
+
     det = cv.SIFT_create() if self.sift else cv.ORB_create()
     kp = det.detect(gray,None)
     # compute the descriptors with ORB
@@ -278,11 +284,16 @@ class Sign_Detector():
       return
     for i in circles[0,:]:
       center = (i[0] + w, i[1] + h)
-      axes = (i[2], i[2])
+      
+      margin = (i[2] - (i[2] * (math.pi/4))) / 4
+      axes = (i[2]* (math.pi/4) + margin, i[2] * (math.pi/4) + margin)
+
       center = np.uint(np.around(center))
       axes = np.uint(np.around(axes))
+
       top_left = (center[0] - axes[0], center[1] - axes[1])
       bottom_right = (center[0] + axes[0], center[1] + axes[1])
+
       sign = img[top_left[1]:bottom_right[1], top_left[0]:bottom_right[0], :]
       if sign.shape[0] == 0 or sign.shape[1] == 0:
         sign = None
@@ -294,11 +305,16 @@ class Sign_Detector():
       circles = circles_small.copy()
       for i in circles[0,:]:
         center = (i[0] + w, i[1] + h)
-        axes = (i[2], i[2])
+        
+        margin = (i[2] - (i[2] * (math.pi/4))) / 4
+        axes = (i[2]* (math.pi/4) + margin, i[2] * (math.pi/4) + margin)
+
         center = np.uint(np.around(center))
         axes = np.uint(np.around(axes))
+        
         top_left = (center[0] - axes[0], center[1] - axes[1])
         bottom_right = (center[0] + axes[0], center[1] + axes[1])
+        
         points = (top_left, bottom_right)
         if points[0][0] >= points[1][0] or points[0][1] >= points[1][1]:
           points = None
@@ -347,7 +363,7 @@ def save_circles_from_video(sd: Sign_Detector, img: np.ndarray, circles:np.ndarr
 
 
 def main():
-  filename = str(ROOT_DIR / 'photos' / '2.jpg')
+  filename = os.path.join(ROOT_DIR, 'photos', '0.jpg')
   #filename = 'C:\\Users\\ricca\\OneDrive\\Desktop\\scazzo\\traffic\\photos\\IMG_20220731_153050.jpg'
   sd = Sign_Detector()
 

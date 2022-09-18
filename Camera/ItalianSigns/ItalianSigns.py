@@ -202,11 +202,13 @@ if __name__ == "__main__":
     parser.add_argument('-d', '--dataset', action='store_true', default=False, help='improve Italian Signs')
     parser.add_argument('-t', '--test', action='store_true', default=False, help='test traffic on Italian Signs')
     parser.add_argument('-v', '--verbose', action='store_true', default=False, help='verbosity')
-    
+        
     opt = parser.parse_args()
+    opt.test = True
     if opt.test:
         test(opt.verbose)
     elif opt.dataset:
         make_dataset()
+
 
 

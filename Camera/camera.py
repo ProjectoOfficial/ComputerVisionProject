@@ -38,27 +38,36 @@ def on_press(key):
     global PRESSED_KEY
     if hasattr(key, 'char'):
         if key.char is not None:
-            if key.char in "qrgescibtf": # add here a letter if you want to insert a new command
+            if key.char in "aqrgescibtf": # add here a letter if you want to insert a new command
                 PRESSED_KEY = key.char
 
 listener = Listener(on_press=on_press)
 preprocessor = Preprocessing((640, 640))
+
+def resolution(s):
+    try:
+        y, x = map(int, s.split(','))
+        return (y, x)
+    except:
+        raise argparse.ArgumentTypeError("Resolution must be W, H")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument('-b', '--batch-size', type=int, default=1, help='YOLOv7 batch-size')
     parser.add_argument('-c', '--calibrate', action='store_true', default=False, help='true if you want to calibrate the camera')
-    parser.add_argument('-cd', '--camera-device', type=int, default=0, help='Camera device ID')
+    parser.add_argument('-cd', '--camera-device', type=str, default='0', help='Camera device ID')
     parser.add_argument('-ct', '--conf-thres', type=float, default=0.001, help='YOLOv7 conf threshold')
     parser.add_argument('-d', '--device', type=str, default='0', help='cuda device(s)')
+    parser.add_argument('-exp', '--exposure', type=int, default=-5, help='Sets camera exposure')
     parser.add_argument('-it', '--iou-thres', type=float, default=0.65, help='YOLOv7 iou threshold')
     parser.add_argument('-f', '--filename', type=str, default='out', help='filename for recordings')
+    parser.add_argument('-fps', '--fps', type=int, default=60, help='Sets camera FPS')
     parser.add_argument('-j', '--jetson', action='store_true', default=False, help='true if you are using the Nvidia Jetson Nano')
     parser.add_argument('-l', '--label', action='store_true', default=False, help='true if you want to save labelled signs')
     parser.add_argument('-n', '--name', type=str, default='camera', help='YOLOv7 result test directory name')
     parser.add_argument('-p', '--project', type=str, default=os.path.join(parent, 'Models', 'YOLOv7', 'runs', 'test') , help='YOLOv7 project save directory')
-    parser.add_argument('-r', '--resolution', type=tuple, default=(1280, 720), help='camera resolution')
+    parser.add_argument('-r', '--resolution', type=resolution, default=(1280, 720), help='camera resolution')
     parser.add_argument('-rt', '--rotate', action='store_true', default=False, help='rotate frame for e-con camera')
     parser.add_argument('-s', '--save-sign', action='store_true', default=False, help='save frames which contain signs')
     parser.add_argument('-sh', '--save-hybrid', action='store_true', default=False, help='YOLOv7 save hybrid')
@@ -67,6 +76,7 @@ if __name__ == "__main__":
     opt = parser.parse_args()
 
     opt.save_txt |= opt.save_hybrid
+    opt.camera_device = int(opt.camera_device) if opt.camera_device.isnumeric() else opt.camera_device
 
     if opt.rotate:
         ROTATION = cv2.ROTATE_90_COUNTERCLOCKWISE
@@ -101,7 +111,8 @@ if __name__ == "__main__":
         writer.writerow(["filename", "x top left", "y top left", "x bottom right",  "y bottom right", "speed limit", "valid"])
         f.close()
 
-    camera = RTCamera(opt.camera_device, fps=30, resolution=opt.resolution, cuda=True, auto_exposure=False, rotation=ROTATION)
+    print(opt.resolution)
+    camera = RTCamera(opt.camera_device, fps=opt.fps, resolution=opt.resolution, cuda=True, auto_exposure=False, rotation=ROTATION, exposure=opt.exposure)
     camera.start()
 
     start_fps = time.monotonic()
@@ -164,13 +175,20 @@ if __name__ == "__main__":
                     print("recording stopped!")
                     RECORDING = False
 
-            elif PRESSED_KEY == 'g' and not RECORDING: # CHANGE GAIN
-                gain = int(input("please insert the gain: "))
-                camera.set_gain(gain)
+            elif PRESSED_KEY == 'g' and not RECORDING: # CHANGE GAMMA
+                gamma = float(input("please insert gamma value: "))
+                camera.set_gamma(gamma)
+            
+            elif PRESSED_KEY == 'a' and not RECORDING: # CHANGE ALPHA AND BETA
+                clip = float(input("insert clip percentage: "))
+                camera.calc_bc(clip)
 
             elif PRESSED_KEY == 'e' and not RECORDING: # CHANGE EXPOSURE
-                exp = int(input("please insert the exposure: "))
-                camera.set_exposure(exp)
+                try:
+                    exp = float(input("please insert the exposure: "))
+                    camera.set_exposure(exp)
+                except:
+                    print("Error during exposure read")
 
             elif PRESSED_KEY == 's' and not RECORDING: # SAVE CURRENT FRAME
                 path = os.path.join(current, 'Calibration', 'frame_{}.jpg'.format(datetime.now().strftime("%d_%m_%Y__%H_%M_%S")))
@@ -282,6 +300,7 @@ if __name__ == "__main__":
                     cv2.imwrite(path, frame)
                 
             an.write(frame, speed, updates)
+            frame = cv2.resize(frame, (1280, 720))
             cv2.putText(frame, str(fps) + " fps", (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 255, 0), 2, cv2.LINE_AA)
             cv2.imshow("frame", frame)
 

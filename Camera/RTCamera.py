@@ -1,3 +1,4 @@
+from pydoc import cli
 import cv2
 from threading import Thread
 import time
@@ -8,7 +9,7 @@ class RTCamera(object):
         This class is used to manage the camera
     '''
 
-    def __init__(self, src:int=0, fps:float=60, resolution:tuple=(1920, 1080), cuda : bool = False, auto_exposure : bool = False, rotation: int = None):
+    def __init__(self, src=0, fps:float=60, resolution:tuple=(1920, 1080), cuda : bool = False, auto_exposure : bool = False, rotation: int = None, exposure: int = -5):
 
         self.src            = src
         self.cap            = cv2.VideoCapture(self.src)
@@ -42,7 +43,12 @@ class RTCamera(object):
         self.rvecs = None
         self.tvecs = None
 
-        self.exposure = -5
+        self.exposure = exposure
+        self.alpha = 1
+        self.beta = 0
+        self.gamma = 1.0
+        inv_gamma = 1.0 / 0.5
+        self.gamma_table = np.array([((i / 255.0) ** inv_gamma) * 255 for i in np.arange(0, 256)]).astype("uint8")
 
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.resolution[0])
@@ -50,8 +56,12 @@ class RTCamera(object):
 
         self.cap.set(cv2.CAP_PROP_FPS, fps)
         self.cap.set(cv2.CAP_PROP_CONVERT_RGB , 1)
+        self.cap.set(cv2.CAP_PROP_AUTO_WB , 1)
+        self.cap.set(cv2.VIDEOWRITER_PROP_QUALITY , 100)
+        self.cap.set(cv2.CAP_PROP_TILT , 100)
 
-        self.cap.set(cv2.CAP_PROP_EXPOSURE, self.exposure)
+        self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.75)
+        self.cap.set(cv2.CAP_PROP_BRIGHTNESS, 100)
         self.cap.set(cv2.CAP_PROP_GAIN, 0)
 
         self.EXPOSURE_RANGE = range(55, 75)
@@ -122,8 +132,9 @@ class RTCamera(object):
                 if self.cuda:
                     self.frame.upload(frame)
                 else:
-                    self.frame = frame
-                        
+                    self.frame = cv2.LUT(frame, self.gamma_table) if self.gamma != 1.0 else frame
+                    self.frame = cv2.convertScaleAbs(self.frame, alpha=self.alpha, beta=self.beta) if self.alpha != 1 or self.beta !=0 else self.frame
+                    
                 if self.record:
                     self.output.write(self.frame)
 
@@ -195,15 +206,24 @@ class RTCamera(object):
             self.fps_times = np.array([])
         return fps
         
-    def set_exposure(self, exp:int):
+    def set_exposure(self, exp: int):
         '''
         this method allows to manually set the camera exposure
         '''
         try:
-            assert exp < 15 and exp > -15 and isinstance(exp, int)
-            self.cap.set(cv2.CAP_PROP_EXPOSURE, exp)
+            if exp < 1 and exp > 0:
+                self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, exp)
+            else:
+                self.cap.set(cv2.CAP_PROP_EXPOSURE, exp)
         except AssertionError:
-            print("exposure must be an integer number in the range (15, -15)")
+            print("Error occurred while setting camera exposure")
+
+    def set_gamma(self, gamma: int):
+        self.gamma = gamma
+        assert gamma > 0 and gamma <=1, 'Gamma value must be between 0 and 1'
+        
+        inv_gamma = 1.0 / gamma
+        self.gamma_table = np.array([((i / 255.0) ** inv_gamma) * 255 for i in np.arange(0, 256)]).astype("uint8") 
 
     def set_gain(self, gain:int):
         '''
@@ -238,6 +258,37 @@ class RTCamera(object):
             x, y, w, h = roi
         dst = dst[y:y+h, x:x+w]
         self.frame = cv2.cuda.resize(dst, self.resolution) if self.cuda else cv2.resize(dst, self.resolution)
+
+    def calc_bc(self, clip_perc: float = 25):
+        '''
+        calculates brightness and contrast
+        '''
+
+        gray = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
+
+        hist = cv2.calcHist([gray], [0], None, [256], [0, 256])
+    
+        accumulator = []
+        accumulator.append(float(hist[0]))
+        for i in range(1, len(hist)):
+            accumulator.append(accumulator[i - 1] + float(hist[i]))
+
+        maximum = accumulator[-1]
+        clip_perc *= (maximum/100.0) 
+        clip_perc /= 2
+
+        minimum_gray = 0
+        while accumulator[minimum_gray] < clip_perc:
+            minimum_gray += 1
+
+        maximum_gray = len(hist) - 1
+        while accumulator[maximum_gray] >= (maximum - clip_perc):
+            maximum_gray -= 1
+
+        self.alpha = 255 / (maximum_gray - minimum_gray)
+        self.beta = - minimum_gray * self.alpha
+
+        print("Alpha: {:.2f} - Beta: {:.2f}".format(self.alpha, self.beta))
 
     def __adjust_exposure(self):
         '''
