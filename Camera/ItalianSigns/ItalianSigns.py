@@ -276,7 +276,7 @@ if __name__ == "__main__":
         
     opt = parser.parse_args()
     #opt.dataset = True
-    opt.test = True
+    #opt.test = True
     if opt.test:
         test(opt.verbose)
     elif opt.dataset:

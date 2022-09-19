@@ -67,18 +67,42 @@ class Preprocessor():
     h, w, _ = blur.shape
     gray_filter = np.reshape(blur_copy[:, :, 2], (h, w)) #from HSV to GRAYSCALE
     
-    _, binary = cv.threshold(gray_filter, 127, 255, cv.THRESH_BINARY)
+    _, binary = cv.threshold(gray_filter, 200, 255, cv.THRESH_BINARY)
     closing = cv.morphologyEx(binary, cv.MORPH_CLOSE, np.ones((4, 4), np.uint8), iterations=1)
-    dilated = cv.dilate(closing, np.ones((4, 4), np.uint8), iterations=2)
+    dilated = cv.dilate(closing, np.ones((15, 15), np.uint8), iterations=4)
 
     gray = np.reshape(blur[:, :, 2], (h, w))
-    return cv.bitwise_and(gray, gray, mask=dilated)
+    masked = cv.bitwise_and(gray, gray, mask=dilated) 
+    contours, hierarchy = cv.findContours(masked, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_NONE)
+
+    cnt = 0
+    best_area = 0
+    for contour in contours:
+      if best_area < cv.contourArea(contour):
+        best_area = cv.contourArea(contour)
+        cnt = contour
+
+    out = np.zeros_like(masked) # Extract out the object and place into output image
+    topx = 0
+    topy = 0
+    if len(contours) > 0:
+      cnt_mask = np.zeros_like(masked) # Create mask where white is what we want, black otherwise
+      cv.drawContours(cnt_mask, cnt, -1, 255, -1) # Draw filled contour in mask
+      out[cnt_mask == 255] = masked[cnt_mask == 255]
+
+      # Now crop
+      (y, x) = np.where(cnt_mask == 255)
+      (topy, topx) = (np.min(y), np.min(x))
+      (bottomy, bottomx) = (np.max(y), np.max(x))
+      out = gray[topy:bottomy+1, topx:bottomx+1]
+
+    return out, (topx, topy) # out, h, w
 
 """
 Detector class, in which we perform the Canny Edge Detection and the Circles detection via the Hough Transform
 """
 class Detector():
-  def __init__(self, HOUGH_GRADIENT=True, dp=2.2, minDist = 500, param1=230, param2=85, minRadiusRatio=100, maxRadiusRatio = 20):
+  def __init__(self, HOUGH_GRADIENT=True, dp=2.2, minDist = 500, param1=230, param2=95, minRadiusRatio=10, maxRadiusRatio = 1.4):
     self.method = cv.HOUGH_GRADIENT
     if not HOUGH_GRADIENT:
       self.method = cv.HOUGH_GRADIENT_ALT
@@ -94,8 +118,8 @@ class Detector():
     if print_canny:
       cv.imwrite(ROOT_DIR + '\\canny_edges.jpg', cv.Canny(gray_img, self.param1, self.param1//2))
     minimum = gray_img.shape[0] if gray_img.shape[0] < gray_img.shape[1] else gray_img.shape[1]
-    maxR = minimum // self.maxRadiusRatio
-    minR = minimum // self.minRadiusRatio
+    maxR = round(minimum / self.maxRadiusRatio)
+    minR = round(minimum / self.minRadiusRatio)
     circles = cv.HoughCircles(image=gray_img, method=self.method, dp=self.dp, minDist=self.minDist, param1=self.param1, param2=self.param2, minRadius=minR, maxRadius=maxR)
     return circles
 
@@ -146,20 +170,16 @@ class Matcher():
   # detected sign
   def match(self, sign: np.ndarray, show_scores = False) -> int:
     sign = cv.resize(sign, self.dims[0], interpolation = cv.INTER_LINEAR_EXACT)
-    gray= cv.cvtColor(sign,cv.COLOR_BGR2GRAY)
-    _, gray = cv.threshold(gray, 0, 255, cv.THRESH_BINARY+cv.THRESH_OTSU)
-    gray = cv.bitwise_not(gray)
-
-    #mask = cv.inRange(sign, (0,0,0), (60, 60, 60))
-    #gray = cv.bitwise_and(gray, gray, mask=mask)
+    gray = sign[:,:,0]
+    _, binary_inv = cv.threshold(gray, 0, 255, cv.THRESH_BINARY+cv.THRESH_OTSU)
+    binary = cv.bitwise_not(binary_inv)
 
     det = cv.SIFT_create() if self.sift else cv.ORB_create()
-    kp = det.detect(gray, None)
+    kp = det.detect(binary, None)
     # compute the descriptors with ORB
-    kp, key_ps = det.compute(gray, kp)
+    kp, key_ps = det.compute(binary, kp)
     alpha = 0.8
     knn = 2
-    #append = True
     if key_ps is not None:
       scores = {}
       for i in range(len(self.num)):
@@ -168,15 +188,6 @@ class Matcher():
           matches = self.bf.knnMatch(features, key_ps, k=knn)
           good = []
           for j in range(len(matches)):
-            """
-            if len(matches[j]) == knn:
-              for k in range(0, knn-1):
-                if not matches[j][k].distance < alpha*matches[j][k+1].distance:
-                  append = False
-                  break
-              if append:
-                good.append([matches[j][0]])
-            """
             if len(matches[j]) == knn:
               if matches[j][0].distance < alpha*matches[j][1].distance :#and matches[j][1].distance < alpha*matches[j][2].distance:
                 good.append([matches[j][0]])
@@ -194,12 +205,9 @@ class Matcher():
       values.sort(reverse = True)
       if show_scores:
         print(scores)
-      if values[0] > 1.25*values[1] and values[0] > 7:
+      if values[0] >= 1.20*values[1] and values[0] > 6:
         return max_key
-      else:
-        return 0
-    else:
-      return 0
+    return 0
 
 #class used for writing and drawing on the image
 class Annotator():
@@ -260,8 +268,7 @@ class Sign_Detector():
     if os.path.exists(SIGNS_DIR):
       shutil.rmtree(SIGNS_DIR)
     os.mkdir(SIGNS_DIR)
-    self.max_radius_ratio = 9
-    self.dt = Detector(maxRadiusRatio=self.max_radius_ratio)
+    self.dt = Detector()
     self.pre = Preprocessor()
     self.mat = Matcher(sift = True, path = TEMPLATES_DIR)
     self.an = Annotator()
@@ -280,10 +287,12 @@ class Sign_Detector():
     updates = 0
     frame = frame[h : round(h*3), w : , :] 
     #cutting away upper and lower 25% (keeping central 50%) and left 33% (keeping right 67%)
-    gray = self.pre.prep(frame)
+    gray, (h_margin, w_margin) = self.pre.prep(frame)
     circles = self.dt.detect(gray)
     found = True if circles is not None else False
     if found:
+      circles[:,:,0] += h_margin
+      circles[:,:,1] += w_margin
       sign = self.extract_sign(original, circles, h, w)
       if sign is not None:
         res = self.mat.match(sign, show_results)
@@ -322,8 +331,6 @@ class Sign_Detector():
       for i in circles[0,:]:
         center = (i[0] + w, i[1] + h)
         
-        #margin = (i[2] - (i[2] * (math.pi/4))) / 4
-        #axes = (i[2]* (math.pi/4) + margin, i[2] * (math.pi/4) + margin)
         axes = (i[2], i[2])
 
         center = np.uint(np.around(center))
