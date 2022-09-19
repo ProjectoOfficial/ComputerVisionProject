@@ -3,7 +3,7 @@ import sys
 import numpy as np
 import shutil
 
-from sklearn.metrics import confusion_matrix, accuracy_score, classification_report
+from sklearn.metrics import confusion_matrix, balanced_accuracy_score, classification_report
 
 import cv2
 import csv
@@ -14,6 +14,72 @@ parent = os.path.dirname(current)
 sys.path.append(os.path.dirname(parent))
 
 from traffic.traffic_video import Sign_Detector, Annotator
+
+def standard_bbox(bbox: tuple) -> np.array:
+    x1 = bbox[0][0]
+    y1 = bbox[0][1]
+    x2 = bbox[1][0]
+    y2 = bbox[1][1]
+    return np.array([x1, y1, x2, y2], np.float32)
+
+def xyxy2xywh(x: np.array) -> np.array:
+    # Convert nx4 boxes from [x1, y1, x2, y2] to [x, y, w, h] where xy1=top-left, xy2=bottom-right
+    y = np.copy(x)
+    y[0] = (x[0] + x[2]) / 2  # x center
+    y[1] = (x[1] + x[3]) / 2  # y center
+    y[2] = x[2] - x[0]  # width
+    y[3] = x[3] - x[1]  # height
+    return y
+
+def intersection_over_union(box_a, box_b):
+    # Determine the coordinates of each of the two boxes
+    xA = max(box_a[0], box_b[0])
+    yA = max(box_a[1], box_b[1])
+    xB = min(box_a[0]+box_a[2], box_b[0]+box_b[2])
+    yB = min(box_a[1]+box_a[3], box_b[1]+box_b[3])
+
+    # Calculate the area of the intersection area
+    area_of_intersection = (xB - xA + 1) * (yB - yA + 1)
+
+    # Calculate the area of both rectangles
+    box_a_area = (box_a[2] + 1) * (box_a[3] + 1)
+    box_b_area = (box_b[2] + 1) * (box_b[3] + 1)
+    # Calculate the area of intersection divided by the area of union
+    # Area of union = sum both areas less the area of intersection
+    iou = area_of_intersection / float(box_a_area + box_b_area - area_of_intersection)
+
+    # Return the score
+    return iou
+
+def bbox_metrics(b_true_list: list, b_list: list) -> float:
+    tp = 0
+    fp = 0
+    tn = 0
+    fn = 0
+    for i in range(len(b_true_list)):
+        b_true = xyxy2xywh(standard_bbox(b_true_list[i]))
+        b = xyxy2xywh(standard_bbox(b_list[i]))
+
+        iou = intersection_over_union(b_true, b) if b.sum() != 0 else 0
+        
+        if b.sum() > 0 and iou >= 0.6:
+            tp += 1
+
+        elif b.sum() > 0  and iou < 0.6:
+            fp +=1
+
+        elif b.sum() == 0 and b_true.sum() != 0:
+            fn += 1
+
+        elif b.sum() == 0 and b_true.sum() == 0:
+            tn +=1
+
+    precision = tp / (tp+fp) if tp != 0 else 0
+    recall = tp / (tp+fn) if tp != 0 else 0
+    accuracy = (tp + tn) / (tp + fp + tn + fn)
+
+    return accuracy, precision, recall
+        
 
 def make_dataset():
     # already checked labels
@@ -146,6 +212,7 @@ def test(show:bool=False):
 
     sd = Sign_Detector()
     y, y_true = [], []
+    b, b_true = [], []
     for (dirpath, dirname, filenames) in os.walk(os.path.join(current, "images")):
         for fname in filenames:
             frame = cv2.imread(os.path.join(current, "images", fname))
@@ -168,13 +235,15 @@ def test(show:bool=False):
             bbox = ((int(bbox[0]), int(bbox[1])),(int(bbox[2]), int(bbox[3])))
             speed = int(gtlabels[fname][4])
             y_true.append(speed)
+            b_true.append(bbox)
 
             frame = an.draw_bb(frame, bbox, (0, 255, 255), 3)
             cv2.putText(frame, "gt speed: {}".format(speed), (10, 50), cv2.FONT_HERSHEY_COMPLEX, 1.6 , (0, 255,255), 2, cv2.LINE_AA, False)
 
             found, circles, sdspeed, updates = sd.detect(original, h, w, show_results = False)
             sdbbox = sd.extract_bb(circles, h, w)
-            y.append(sdspeed)
+            y.append(sdspeed if sdspeed is not None else 0)
+            b.append(sdbbox if sdbbox is not None else ((0, 0), (0, 0)))
 
             if show:
                 if sdbbox is not None:
@@ -188,12 +257,14 @@ def test(show:bool=False):
 
     y_true = np.array(y_true)
     y = np.array(y)
-    accuracy = accuracy_score(y_true, y)
+    accuracy = balanced_accuracy_score(y_true, y)
     cf_mat = confusion_matrix(y_true, y)
     report = classification_report(y_true, y)
+    box_accuracy, box_precision, box_recall = bbox_metrics(b_true, b)
 
     print("SPEED LIMITS")
-    print(accuracy)
+    print("Balanced accuracy: {:.2f}".format(accuracy))
+    print("BBox Accuracy: {:.2f} - precision: {:.2f} - recall: {:.2f}".format(box_accuracy, box_precision, box_recall))
     print(cf_mat)
     print(report)
 
@@ -205,7 +276,7 @@ if __name__ == "__main__":
         
     opt = parser.parse_args()
     #opt.dataset = True
-    #opt.test = True
+    opt.test = True
     if opt.test:
         test(opt.verbose)
     elif opt.dataset:
