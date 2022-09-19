@@ -52,8 +52,8 @@ class Preprocessor():
     pass
   def prep(self, img: np.ndarray) -> np.ndarray:
     #cv.imshow('Resized Image',img)
-    img2 = cv.medianBlur(img, ksize=5)
-    hls = cv.cvtColor(img2, cv.COLOR_BGR2HLS)
+    blur = cv.GaussianBlur(img, (3, 3), 0)
+    hls = cv.cvtColor(blur, cv.COLOR_BGR2HLS)
     
     lower = np.array([155,25,0])
     upper = np.array([179,255,255])
@@ -61,16 +61,18 @@ class Preprocessor():
     mask = cv.inRange(hls, lower, upper)
     temp = cv.bitwise_and(hls, hls, mask=mask)
 
-    img2[np.where(temp==0)] = 0
+    blur_copy = blur.copy()
+    blur_copy[np.where(temp==0)] = 0
 
-    h, w, _ = img2.shape
-    gray_img = np.reshape(img2[:, :, 2], (h, w)) #from HSV to GRAYSCALE
-    gray_img = cv.copyMakeBorder(gray_img, 10, 10, 10, 10, cv.BORDER_CONSTANT, None, value = 0)
-    _, binary = cv.threshold(gray_img, 127, 255, cv.THRESH_BINARY)
+    h, w, _ = blur.shape
+    gray_filter = np.reshape(blur_copy[:, :, 2], (h, w)) #from HSV to GRAYSCALE
+    
+    _, binary = cv.threshold(gray_filter, 127, 255, cv.THRESH_BINARY)
     closing = cv.morphologyEx(binary, cv.MORPH_CLOSE, np.ones((4, 4), np.uint8), iterations=1)
     dilated = cv.dilate(closing, np.ones((4, 4), np.uint8), iterations=2)
 
-    return cv.bitwise_and(gray_img, gray_img, mask=closing)
+    gray = np.reshape(blur[:, :, 2], (h, w))
+    return cv.bitwise_and(gray, gray, mask=dilated)
 
 """
 Detector class, in which we perform the Canny Edge Detection and the Circles detection via the Hough Transform
@@ -144,13 +146,12 @@ class Matcher():
   # detected sign
   def match(self, sign: np.ndarray, show_scores = False) -> int:
     sign = cv.resize(sign, self.dims[0], interpolation = cv.INTER_LINEAR_EXACT)
-    gray = sign[:,:,2]
+    gray= cv.cvtColor(sign,cv.COLOR_BGR2GRAY)
     _, gray = cv.threshold(gray, 0, 255, cv.THRESH_BINARY+cv.THRESH_OTSU)
     gray = cv.bitwise_not(gray)
 
-    mask = cv.inRange(sign, (0,0,0), (60, 60, 60))
-    gray = cv.bitwise_and(gray, gray, mask=mask)
-    gray = cv.erode(gray, kernel=np.ones((3, 3), np.uint8), iterations=1)
+    #mask = cv.inRange(sign, (0,0,0), (60, 60, 60))
+    #gray = cv.bitwise_and(gray, gray, mask=mask)
 
     det = cv.SIFT_create() if self.sift else cv.ORB_create()
     kp = det.detect(gray, None)

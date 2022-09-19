@@ -204,7 +204,7 @@ if __name__ == "__main__":
     parser.add_argument('-v', '--verbose', action='store_true', default=False, help='verbosity')
         
     opt = parser.parse_args()
-    opt.dataset = True
+    #opt.dataset = True
     #opt.test = True
     if opt.test:
         test(opt.verbose)
