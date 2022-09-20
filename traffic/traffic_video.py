@@ -6,7 +6,6 @@ import os
 import shutil
 from typing import Union, Tuple
 from pathlib import Path
-import math
 path_root = Path(__file__).parents[1]
 #print(path_root)
 sys.path.append(str(path_root))
@@ -65,13 +64,13 @@ class Preprocessor():
     blur_copy[np.where(temp==0)] = 0
 
     h, w, _ = blur.shape
-    gray_filter = np.reshape(blur_copy[:, :, 2], (h, w)) #from HSV to GRAYSCALE
+    gray_filter = np.reshape(blur_copy[:, :, 0], (h, w)) #from HSV to GRAYSCALE
     
     _, binary = cv.threshold(gray_filter, 200, 255, cv.THRESH_BINARY)
     closing = cv.morphologyEx(binary, cv.MORPH_CLOSE, np.ones((4, 4), np.uint8), iterations=1)
     dilated = cv.dilate(closing, np.ones((15, 15), np.uint8), iterations=4)
 
-    gray = np.reshape(blur[:, :, 2], (h, w))
+    gray = np.reshape(blur[:, :, 0], (h, w))
     masked = cv.bitwise_and(gray, gray, mask=dilated) 
     contours, hierarchy = cv.findContours(masked, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_NONE)
 
@@ -94,7 +93,7 @@ class Preprocessor():
       (y, x) = np.where(cnt_mask == 255)
       (topy, topx) = (np.min(y), np.min(x))
       (bottomy, bottomx) = (np.max(y), np.max(x))
-      out = gray[topy:bottomy+1, topx:bottomx+1]
+      out = img[topy:bottomy+1, topx:bottomx+1, 0]
 
     return out, (topx, topy) # out, h, w
 
@@ -102,7 +101,7 @@ class Preprocessor():
 Detector class, in which we perform the Canny Edge Detection and the Circles detection via the Hough Transform
 """
 class Detector():
-  def __init__(self, HOUGH_GRADIENT=True, dp=2.2, minDist = 500, param1=230, param2=95, minRadiusRatio=10, maxRadiusRatio = 1.4):
+  def __init__(self, HOUGH_GRADIENT=True, dp=2.2, minDist = 500, param1=230, param2=95, minRadiusRatio=15, maxRadiusRatio = 4):
     self.method = cv.HOUGH_GRADIENT
     if not HOUGH_GRADIENT:
       self.method = cv.HOUGH_GRADIENT_ALT
@@ -114,13 +113,23 @@ class Detector():
     self.maxRadiusRatio = maxRadiusRatio
   #single-channel image
   
-  def detect(self, gray_img: np.ndarray, print_canny : bool= False):
+  def detect(self, gray: np.ndarray, print_canny : bool= False):
     if print_canny:
-      cv.imwrite(ROOT_DIR + '\\canny_edges.jpg', cv.Canny(gray_img, self.param1, self.param1//2))
-    minimum = gray_img.shape[0] if gray_img.shape[0] < gray_img.shape[1] else gray_img.shape[1]
+      cv.imwrite(ROOT_DIR + '\\canny_edges.jpg', cv.Canny(gray, self.param1, self.param1//2))
+    
+    expanded = False
+    if gray.shape[0] < 65 or gray.shape[1] < 65:
+      expanded = True
+      gray = cv.resize(gray, (gray.shape[0]*2, gray.shape[1]*2))
+    minimum = gray.shape[0] if gray.shape[0] < gray.shape[1] else gray.shape[1]
+
     maxR = round(minimum / self.maxRadiusRatio)
     minR = round(minimum / self.minRadiusRatio)
-    circles = cv.HoughCircles(image=gray_img, method=self.method, dp=self.dp, minDist=self.minDist, param1=self.param1, param2=self.param2, minRadius=minR, maxRadius=maxR)
+    circles = cv.HoughCircles(image=gray.copy(), method=self.method, dp=self.dp, minDist=self.minDist, param1=self.param1, param2=self.param2, minRadius=minR, maxRadius=maxR)
+    
+    if expanded and circles is not None:
+      circles[:,:,:] /= 2
+    
     return circles
 
 
@@ -151,7 +160,7 @@ class Matcher():
             for dim in self.dims:
               for blur in self.blurs:
                 img = cv.resize(img, dim, interpolation = cv.INTER_AREA)
-                gray= cv.cvtColor(img,cv.COLOR_BGR2GRAY)
+                gray= img[:,:,0]
                 _, gray = cv.threshold(gray, 0, 255, cv.THRESH_BINARY+cv.THRESH_OTSU)
                 gray = cv.bitwise_not(gray)
                 kp = self.det.detect(gray,None)
@@ -205,7 +214,7 @@ class Matcher():
       values.sort(reverse = True)
       if show_scores:
         print(scores)
-      if values[0] >= 1.20*values[1] and values[0] > 6:
+      if values[0] >= 1.20*values[1] and values[0] > 4:
         return max_key
     return 0
 
@@ -273,7 +282,7 @@ class Sign_Detector():
     self.mat = Matcher(sift = True, path = TEMPLATES_DIR)
     self.an = Annotator()
 
-  def detect(self, frame: np.ndarray, h, w, show_results = False) -> Union[bool, np.ndarray, int, int, Tuple]:
+  def detect(self, frame: np.ndarray, h_perc, w_perc, show_results = False) -> Union[bool, np.ndarray, int, int, Tuple]:
     if frame is None:
       return False, None, 0, 0, (0, 0)
 
@@ -285,7 +294,10 @@ class Sign_Detector():
     
     speed = 0
     updates = 0
-    frame = frame[h : round(h*3), w : , :] 
+    h, w, _ = frame.shape
+    h = (h * h_perc) // 100
+    w = (w * w_perc) //100
+    frame = frame[h : frame.shape[0] - h, w : , :] 
     #cutting away upper and lower 25% (keeping central 50%) and left 33% (keeping right 67%)
     gray, (h_margin, w_margin) = self.pre.prep(frame)
     circles = self.dt.detect(gray)
@@ -296,10 +308,9 @@ class Sign_Detector():
       sign = self.extract_sign(original, circles, h, w)
       if sign is not None:
         res = self.mat.match(sign, show_results)
-
-      if res != 0:
-        speed = res
-        updates += 1
+        if res != 0:
+          speed = res
+          updates += 1
 
     return found, circles, speed, updates
 
@@ -418,7 +429,6 @@ def main():
   else: 
     print('Not found')
   
-    
 
 if __name__ == '__main__':
   main()

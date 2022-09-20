@@ -58,10 +58,9 @@ class RTCamera(object):
         self.cap.set(cv2.CAP_PROP_CONVERT_RGB , 1)
         self.cap.set(cv2.CAP_PROP_AUTO_WB , 1)
         self.cap.set(cv2.VIDEOWRITER_PROP_QUALITY , 100)
-        self.cap.set(cv2.CAP_PROP_TILT , 100)
 
+        self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)
         self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.75)
-        self.cap.set(cv2.CAP_PROP_BRIGHTNESS, 100)
         self.cap.set(cv2.CAP_PROP_GAIN, 0)
 
         self.EXPOSURE_RANGE = range(55, 75)

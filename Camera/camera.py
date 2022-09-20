@@ -236,7 +236,7 @@ if __name__ == "__main__":
 
             if not opt.jetson:
                 # Object Recognition
-                img, _ = preprocessor.Transform_base(frame)
+                img, _ = preprocessor.Transform_base(original.copy())
                 img = torch.from_numpy(img).permute(2, 0, 1).unsqueeze(dim=0)
                 out, train_out = tester.predict(img)
                 out = non_max_suppression(out, conf_thres=opt.conf_thres, iou_thres=opt.iou_thres, multi_label=True)
@@ -260,7 +260,7 @@ if __name__ == "__main__":
                             cv2.putText(frame, "{:.2f} {} {:.2f}".format(conf, names[int(cls)], distance), (x + 5, y + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (255, 0, 255), 1)
 
                 # Tracking
-                hsvframe =  cv2.cvtColor(frame, cv2.COLOR_RGB2HSV)
+                hsvframe =  cv2.cvtColor(original.copy(), cv2.COLOR_RGB2HSV)
                 tracker.zero_objects()
                 for cls, box in detections:
                     x, y, w, h = box
@@ -276,9 +276,18 @@ if __name__ == "__main__":
 
             # traffic sign detection
             height, width, _ = frame.shape
-            h = height // 4
-            w = width // 3
-            found, c, s, u = sd.detect(frame, h, w, show_results = False)
+            h_perc = 5
+            w_perc = 50
+
+            h, w, _ = frame.shape
+            h = (h * h_perc) // 100
+            w = (w * w_perc) //100
+
+            frame = cv2.line(frame, (w, h), (width, h), (255, 0, 0), 2)
+            frame = cv2.line(frame, (w, h), (w, frame.shape[0] - h), (255, 0, 0), 2)
+            frame = cv2.line(frame, (w, frame.shape[0] - h), (width, frame.shape[0] - h), (255, 0, 0), 2)
+
+            found, c, s, u = sd.detect(original.copy(), h_perc, w_perc, show_results = False)
             if found and s != 0:
                 circles, speed, updates = c, s, u
 
@@ -300,7 +309,7 @@ if __name__ == "__main__":
                     cv2.imwrite(path, frame)
                 
             an.write(frame, speed, updates)
-            frame = cv2.resize(frame, (1280, 720))
+            #frame = cv2.resize(frame, (1280, 720))
             cv2.putText(frame, str(fps) + " fps", (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 255, 0), 2, cv2.LINE_AA)
             cv2.imshow("frame", frame)
 
