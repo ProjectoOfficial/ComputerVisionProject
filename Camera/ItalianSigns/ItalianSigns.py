@@ -129,6 +129,7 @@ def make_dataset(isvideo: bool=False, path: str=""):
         if not isvideo:
             fname = filenames[index]
             if fname in gtlabels.keys():
+                index += 1
                 continue    
             frame = cv2.imread(os.path.join(current, "rawimages", fname))
         else:
@@ -136,6 +137,8 @@ def make_dataset(isvideo: bool=False, path: str=""):
             cap.set(cv2.CAP_PROP_FPS, 60)
             frame = cv2.resize(frame, (1280, 720))
         
+        original = frame.copy()
+
         height, width, _ = frame.shape
         h_perc = 5
         w_perc = 50 
@@ -161,7 +164,7 @@ def make_dataset(isvideo: bool=False, path: str=""):
             frame = an.draw_bb(frame, bbox)
             cv2.putText(frame, "speed: {}".format(speed), (10, 40), cv2.FONT_HERSHEY_COMPLEX, 1.6 , (0, 255, 255), 3, cv2.LINE_AA, False)
         else:
-            found, circles, speed, updates = sd.detect(frame, h_perc, w_perc, show_results = False)
+            found, circles, speed, updates = sd.detect(original.copy(), h_perc, w_perc, show_results = False)
             sdbbox = sd.extract_bb(circles, h, w)
 
             if sdbbox is not None:

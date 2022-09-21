@@ -142,7 +142,7 @@ class Matcher():
   def __init__(self, sift = False, path = ''):
     self.kp = []
     self.features = []
-    self.num = [5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120] #traffic signs
+    self.num = [10, 20, 30, 40, 50, 60, 70, 80, 90] #traffic signs
     self.dims = [(100, 100)]
     self.blurs = [(3, 3)]
     self.det = cv.SIFT_create() if sift else cv.ORB_create()
@@ -154,13 +154,14 @@ class Matcher():
         kp_list = []
         des_list = []
         for file in files:
-          file = os.path.join(dir, file)  
-          if os.path.isfile(file):
-            img = cv.imread(file)
+          pth = os.path.join(dir, file)  
+          if os.path.isfile(pth):
+            img = cv.imread(pth)
             for dim in self.dims:
               for blur in self.blurs:
                 img = cv.resize(img, dim, interpolation = cv.INTER_AREA)
-                gray= img[:,:,0]
+                img = cv.GaussianBlur(img, blur, 0)
+                gray = img[:,:,0]
                 _, gray = cv.threshold(gray, 0, 255, cv.THRESH_BINARY+cv.THRESH_OTSU)
                 gray = cv.bitwise_not(gray)
                 kp = self.det.detect(gray,None)
@@ -282,16 +283,16 @@ class Sign_Detector():
     self.mat = Matcher(sift = True, path = TEMPLATES_DIR)
     self.an = Annotator()
 
-  def detect(self, frame: np.ndarray, h_perc, w_perc, show_results = False) -> Union[bool, np.ndarray, int, int, Tuple]:
-    if frame is None:
+  def detect(self, img: np.ndarray, h_perc, w_perc, show_results = False) -> Union[bool, np.ndarray, int, int, Tuple]:
+    if img is None:
       return False, None, 0, 0, (0, 0)
 
-    if frame.size == 0:
+    if img.size == 0:
       return False, None, 0, 0, (0, 0)
 
-    frame = frame.copy()
-    original = frame.copy()
-    
+    frame = img.copy()
+    original = img.copy()
+
     speed = 0
     updates = 0
     h, w, _ = frame.shape
