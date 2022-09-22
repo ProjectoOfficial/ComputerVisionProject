@@ -3,11 +3,14 @@ import sys
 import numpy as np
 import shutil
 
-from sklearn.metrics import confusion_matrix, balanced_accuracy_score, classification_report
+from sklearn.metrics import confusion_matrix, accuracy_score, classification_report
 
 import cv2
 import csv
 import argparse
+
+from tqdm import tqdm
+from time import process_time_ns
 
 current = os.path.dirname(os.path.realpath(__file__))  
 parent = os.path.dirname(current)
@@ -80,6 +83,43 @@ def bbox_metrics(b_true_list: list, b_list: list) -> float:
 
     return accuracy, precision, recall
         
+def classification_metrics(y_true: list, y_pred: list, classes):
+    cf_matrix = confusion_matrix(y_true, y_pred)
+    c_tp = dict()
+    c_tn = dict()
+    c_fp = dict()
+    c_fn = dict()
+
+    for i, cls in enumerate(classes):
+        c_tp[cls] = cf_matrix[i, i]
+        c_fp[cls] = cf_matrix[:, i].sum() - c_tp[cls]
+        c_fn[cls] = cf_matrix[i, :].sum() - c_tp[cls]
+        c_tn[cls] = cf_matrix.sum(axis=(0,1)) - c_tp[cls] - c_fn[cls] - c_fp[cls]
+
+    recalls = []
+    precisions = []
+
+    print("class\t\tprecision\t\trecall\t\tf1\t\tsupport")
+    for cls in classes:
+        support = c_tp[cls] + c_fn[cls]
+        
+        precision = 0 if c_tp[cls] == 0 else c_tp[cls] / (c_tp[cls] + c_fp[cls])
+        precisions.append(precision)
+
+        recall = 0 if c_tp[cls] == 0 else c_tp[cls] / (c_tp[cls] + c_fn[cls])
+        recalls.append(recall)
+
+        f1 = 0 if c_tp[cls] == 0 else (2 * c_tp[cls]) / ((2 * c_tp[cls]) + c_fp[cls] + c_fn[cls])
+        print("{}\t\t{:.2f}\t\t{:.2f}\t\t{:.2f}\t\t{}".format(cls, precision, recall, f1, support))
+
+    print("Accuracy: {:.2f}".format(accuracy_score(y_true, y_pred)))
+
+    print("\n")
+
+    ap = 0
+    for i in range(len(classes) - 1):
+        ap += (recalls[i] + recalls[i + 1]) * precisions[i]
+    print("mAP: {:.2f}".format(ap)) 
 
 def make_dataset(isvideo: bool=False, path: str=""):
     # already checked labels
@@ -224,7 +264,8 @@ def remove_images_not_in_dataset():
 
             os.remove(os.path.join(current, "images", fname))
 
-def test(show:bool=False):
+def test(show:bool=False, speed: bool=True):
+    speed = not show
     gtlabels = dict()
     if not os.path.isfile(os.path.join(current, "labels", "ItalianSigns.csv")):
         print("Italian Signs not found")
@@ -241,79 +282,135 @@ def test(show:bool=False):
     sd = Sign_Detector()
     y, y_true = [], []
     b, b_true = [], []
-    for (dirpath, dirname, filenames) in os.walk(os.path.join(current, "images")):
-        for fname in filenames:
-            frame = cv2.imread(os.path.join(current, "images", fname))
-            original = frame.copy()
 
-            height, width, _ = frame.shape
-            h_perc = 5
-            w_perc = 50
-            h = (height * h_perc) // 100
-            w = (width * w_perc) // 100
-            an = Annotator(width, height)
-            an.org = (20, 50)
+    avg_time = 0
+    lower_time = 999999999999
+    upper_time = 0
+    filenames = os.listdir(os.path.join(current, "images"))
+    for fname in tqdm(filenames, desc="testing: "):
+        frame = cv2.imread(os.path.join(current, "images", fname))
+        original = frame.copy()
 
-            if show:
-                #frame = frame[h : round(h*3), w : , :]
-                frame = cv2.line(frame, (w, h), (width, h), (255, 0, 0), 2)
-                frame = cv2.line(frame, (w, h), (w, frame.shape[0] - h), (255, 0, 0), 2)
-                frame = cv2.line(frame, (w, frame.shape[0] - h), (width, frame.shape[0] - h), (255, 0, 0), 2)
+        #START
+        start_time = process_time_ns()
+        height, width, _ = frame.shape
+        h_perc = 5
+        w_perc = 50
+        h = (height * h_perc) // 100
+        w = (width * w_perc) // 100
+        an = Annotator(width, height)
+        an.org = (20, 50)
 
-            speed, bbox, valid = None, None, None
-            bbox = gtlabels[fname][0:4]
-            bbox = ((int(bbox[0]), int(bbox[1])),(int(bbox[2]), int(bbox[3])))
-            speed = int(gtlabels[fname][4])
-            y_true.append(speed)
-            b_true.append(bbox)
+        if show:
+            #frame = frame[h : round(h*3), w : , :]
+            frame = cv2.line(frame, (w, h), (width, h), (255, 0, 0), 2)
+            frame = cv2.line(frame, (w, h), (w, frame.shape[0] - h), (255, 0, 0), 2)
+            frame = cv2.line(frame, (w, frame.shape[0] - h), (width, frame.shape[0] - h), (255, 0, 0), 2)
 
+        speed, bbox, valid = None, None, None
+        bbox = gtlabels[fname][0:4]
+        bbox = ((int(bbox[0]), int(bbox[1])),(int(bbox[2]), int(bbox[3])))
+        speed = int(gtlabels[fname][4])
+        y_true.append(speed)
+        b_true.append(bbox)
+
+        if not speed:
             frame = an.draw_bb(frame, bbox, (0, 255, 255), 3)
             cv2.putText(frame, "gt speed: {}".format(speed), (10, 50), cv2.FONT_HERSHEY_COMPLEX, 1.6 , (0, 255,255), 2, cv2.LINE_AA, False)
 
-            found, circles, sdspeed, updates = sd.detect(original, h_perc, w_perc, show_results = False)
-            sdbbox = sd.extract_bb(circles, h, w)
-            y.append(sdspeed if sdspeed is not None else 0)
-            b.append(sdbbox if sdbbox is not None else ((0, 0), (0, 0)))
+        found, circles, sdspeed, updates = sd.detect(original, h_perc, w_perc, show_results = False)
+        sdbbox = sd.extract_bb(circles, h, w)
+        y.append(sdspeed if sdbbox is not None else 0)
+        b.append(sdbbox if sdbbox is not None else ((0, 0), (0, 0)))
 
-            if show:
-                if sdbbox is not None:
-                    frame = an.draw_bb(frame, sdbbox, (255, 0, 0), 2)
-                    cv2.putText(frame, "sd speed: {}".format(sdspeed), (10, 150), cv2.FONT_HERSHEY_COMPLEX, 1.6 , (255,0,0), 2, cv2.LINE_AA, False)
-            
-            if show:
-                cv2.imshow("frame", frame)
-                cv2.waitKey(1000)
-                cv2.destroyAllWindows()
+        if speed:
+            avg_time += process_time_ns() - start_time
+            lower_time = process_time_ns() - start_time if process_time_ns() - start_time < lower_time else lower_time
+            upper_time = process_time_ns() - start_time if process_time_ns() - start_time > upper_time else upper_time
+            continue
+
+        if show:
+            if sdbbox is not None:
+                frame = an.draw_bb(frame, sdbbox, (255, 0, 0), 2)
+                cv2.putText(frame, "sd speed: {}".format(sdspeed), (10, 150), cv2.FONT_HERSHEY_COMPLEX, 1.6 , (255,0,0), 2, cv2.LINE_AA, False)
+        
+        if show:
+            cv2.imshow("frame", frame)
+            cv2.waitKey(1000)
+            cv2.destroyAllWindows()
 
     y_true = np.array(y_true)
     y = np.array(y)
-    accuracy = balanced_accuracy_score(y_true, y)
-    cf_mat = confusion_matrix(y_true, y)
-    report = classification_report(y_true, y)
+    classification_metrics(y_true, y, ["10", "20", "30", "40", "50", "60", "70", "80", "90"])
     box_accuracy, box_precision, box_recall = bbox_metrics(b_true, b)
 
     print("SPEED LIMITS")
-    print("Balanced accuracy: {:.2f}".format(accuracy))
     print("BBox Accuracy: {:.2f} - precision: {:.2f} - recall: {:.2f}".format(box_accuracy, box_precision, box_recall))
-    print(cf_mat)
-    print(report)
+
+    
+    if speed:
+        print("Average Speed: {:.4f}ms".format((avg_time /10**6)/len(filenames)))
+        print("Upper bound Speed: {:.4f}ms".format((upper_time /10**6)))
+        print("Lower bound Speed: {:.4f}ms".format((lower_time /10**6)))
+
+def infer(path: str):
+    assert path != "" and path is not None, "You must specify image path"
+
+    frame = cv2.imread(path)
+    assert frame is not None, "Your path is wrong"
+
+    original = frame.copy()
+
+    sd = Sign_Detector()
+
+    height, width, _ = frame.shape
+    h_perc = 5
+    w_perc = 50
+    h = (height * h_perc) // 100
+    w = (width * w_perc) // 100
+    an = Annotator(width, height)
+    an.org = (20, 50)
+
+    frame = cv2.line(frame, (w, h), (width, h), (255, 0, 0), 2)
+    frame = cv2.line(frame, (w, h), (w, frame.shape[0] - h), (255, 0, 0), 2)
+    frame = cv2.line(frame, (w, frame.shape[0] - h), (width, frame.shape[0] - h), (255, 0, 0), 2)
+
+    speed, bbox, valid = None, None, None
+    frame = an.draw_bb(frame, bbox, (0, 255, 255), 3)
+    cv2.putText(frame, "gt speed: {}".format(speed), (10, 50), cv2.FONT_HERSHEY_COMPLEX, 1.6 , (0, 255,255), 2, cv2.LINE_AA, False)
+
+    found, circles, sdspeed, updates = sd.detect(original, h_perc, w_perc, show_results = False)
+    sdbbox = sd.extract_bb(circles, h, w)
+
+    if sdbbox is not None:
+        frame = an.draw_bb(frame, sdbbox, (255, 0, 0), 2)
+        cv2.putText(frame, "sd speed: {}".format(sdspeed), (10, 150), cv2.FONT_HERSHEY_COMPLEX, 1.6 , (255,0,0), 2, cv2.LINE_AA, False)
+    
+    cv2.imshow("frame", frame)
+    cv2.waitKey(1000)
+    cv2.destroyAllWindows()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--dataset', action='store_true', default=False, help='add data to Italian Signs (images)')
-    parser.add_argument('-t', '--test', action='store_true', default=False, help='test traffic on Italian Signs')
+    parser.add_argument('-i', '--infer', action='store_true', default=False, help='infer traffic on a single image')
     parser.add_argument('-p', '--path', type=str, default="", help='path to a resource (image, video)')
     parser.add_argument('-s', '--sequence', action='store_true', default=False, help='add data to Italian Signs (video)')
+    parser.add_argument('-t', '--test', action='store_true', default=False, help='test traffic on Italian Signs')
     parser.add_argument('-v', '--verbose', action='store_true', default=False, help='verbosity')
         
     opt = parser.parse_args()
 
-    if opt.sequence:
+    if opt.sequence or opt.infer:
         assert opt.path, "You have to specify the path of the video"
 
-    opt.dataset = True
-    #opt.test = True
+    #opt.dataset = True
+    opt.test = True
+    #opt.infer = True
+    #opt.path = r"C:\Users\daniel\Documents\GitHub\ComputerVisionProject\Camera\ItalianSigns\rawimages\1492.jpg"
     if opt.test:
         test(opt.verbose)
     elif opt.dataset:
         make_dataset(opt.sequence, opt.path)
+    elif opt.infer:
+        infer(opt.path)

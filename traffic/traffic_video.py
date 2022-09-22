@@ -52,13 +52,19 @@ class Preprocessor():
   def prep(self, img: np.ndarray) -> np.ndarray:
     #cv.imshow('Resized Image',img)
     blur = cv.GaussianBlur(img, (3, 3), 0)
-    hls = cv.cvtColor(blur, cv.COLOR_BGR2HLS)
+    hsv = cv.cvtColor(blur, cv.COLOR_BGR2HSV)
     
-    lower = np.array([155,25,0])
-    upper = np.array([179,255,255])
+    lower1 = np.array([0, 100, 20])
+    upper1 = np.array([10, 255, 255])
 
-    mask = cv.inRange(hls, lower, upper)
-    temp = cv.bitwise_and(hls, hls, mask=mask)
+    lower2 = np.array([160,100,20])
+    upper2 = np.array([179,255,255])
+
+    lower_mask = cv.inRange(hsv.copy(), lower1, upper1)
+    upper_mask = cv.inRange(hsv.copy(), lower2, upper2)
+
+    mask = lower_mask + upper_mask
+    temp = cv.bitwise_and(hsv, hsv , mask=mask)
 
     blur_copy = blur.copy()
     blur_copy[np.where(temp==0)] = 0
@@ -66,7 +72,7 @@ class Preprocessor():
     h, w, _ = blur.shape
     gray_filter = np.reshape(blur_copy[:, :, 0], (h, w)) #from HSV to GRAYSCALE
     
-    _, binary = cv.threshold(gray_filter, 200, 255, cv.THRESH_BINARY)
+    _, binary = cv.threshold(gray_filter, 200, 255, cv.THRESH_OTSU)
     closing = cv.morphologyEx(binary, cv.MORPH_CLOSE, np.ones((4, 4), np.uint8), iterations=1)
     dilated = cv.dilate(closing, np.ones((15, 15), np.uint8), iterations=4)
 
