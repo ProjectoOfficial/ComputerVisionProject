@@ -72,7 +72,7 @@ if __name__ == '__main__':
     parser.add_argument('-cd', '--camera-device', type=int, default=0, help='Camera device ID')
     parser.add_argument('-f', '--filename', type=str, default='out', help='filename for recordings')
     parser.add_argument('-j', '--jetson', action='store_true', default=False, help='true if you are using the Nvidia Jetson Nano')
-    parser.add_argument('-l', '--label', action='store_true', default=False, help='true if you want to save labelled signs')
+    parser.add_argument('-lb', '--label', action='store_true', default=False, help='true if you want to save labelled signs')
     parser.add_argument('-r', '--resolution', type=tuple, default=(1280, 720), help='camera resolution')
     parser.add_argument('-rt', '--rotate', action='store_true', default=False, help='rotate frame for e-con camera')
     parser.add_argument('-s', '--save-sign', action='store_true', default=False, help='save frames which contain signs')
