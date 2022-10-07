@@ -405,7 +405,7 @@ def save_circles_from_video(sd: Sign_Detector, img: np.ndarray, circles:np.ndarr
 
 
 def main():
-  filename = os.path.join(ROOT_DIR, 'photos', '2.jpg')
+  filename = os.path.join(ROOT_DIR, 'photos', '0.jpg')
   #filename = 'C:\\Users\\ricca\\OneDrive\\Desktop\\scazzo\\traffic\\photos\\IMG_20220731_153050.jpg'
   sd = Sign_Detector()
 
@@ -415,11 +415,16 @@ def main():
     exit(0)
 
   height, width, _ = frame.shape
-  h = height // 4
-  w = width // 10*4 #~40%
+
+  h_perc = 5
+  w_perc = 50
+  
+  h = (height * h_perc) // 100
+  w = (width * w_perc) // 100
+
   an = Annotator(width, height)
   an.org = (20, 50)
-  found, circles, speed, updates = sd.detect(frame, h, w, show_results = False)
+  found, circles, speed, updates = sd.detect(frame, h_perc, w_perc, show_results = False)
   if found:
     an.write(frame, speed, updates)
     #frame_out = draw_circles(frame, circles, (height, width), (height, width), (h, w))

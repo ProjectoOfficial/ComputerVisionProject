@@ -5,7 +5,6 @@ import cv2 as cv
 import math
 
 
-from types import NoneType
 import os
 import time
 import shutil
@@ -13,7 +12,7 @@ from typing import Union, Tuple
 from pathlib import Path
 
 #Change Input path, the specific filename is specified and appended in the main
-INPUT = Path('C:\\Users\\ricca\\OneDrive\\Desktop\\targhe')
+INPUT = Path(r'C:\Users\daniel\Documents\GitHub Repositories\ComputerVisionProject\traffic\photos')
 #Results is the path in which you want to save the processed video if you enable
 #save_video in the main(), the name of the file by default is the same as the input video
 RESULTS = Path('C:\\Users\\ricca\\OneDrive\\Desktop\\targhe\\results')
@@ -247,7 +246,7 @@ def main():
     post = False        #Enable if you want to see the video with the mask applied, in order to see what the program see (useful if you need to set the mask properly)
     bilateral = True    #Enable if you want to use the bilateral filter, if False the the standard Gaussian Blur is performed (but bilateral works better)
     save_video = False  #Enable if you want to save the video in the directory RESULTS, with the same file name as the input (default extension is ".avi")
-    file = 'VID20220919142033.mp4'
+    file = '6.jpg'
     filepath = INPUT / file
     filename = str(filepath)
     if not real_time:

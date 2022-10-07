@@ -22,6 +22,7 @@ from Preprocessing import Preprocessing
 from Distance import Distance
 from traffic.traffic_video import Sign_Detector, Annotator
 from Tracking import Tracking
+from traffic.lane_assistant import LaneDetector
 
 
 from Models.YOLOv7.yolo_test import Test
@@ -261,6 +262,14 @@ def main(opt):
                     cv2.rectangle(frame, (int(prediction[0] - (0.5 * w)), int(prediction[1] - (0.5 * h))),
                                   (int(prediction[0] + (0.5 * w)), int(prediction[1] + (0.5 * h))), (0, 255, 0), 2)
                 tracker.clear_objects()
+
+            # lane detection
+            h = frame.shape[0]
+            w = frame.shape[1]
+            ld = LaneDetector(w, h)
+            lines = ld.detect(frame, bilateral=True) 
+            danger = ld.is_danger(lines=lines)
+            frame = ld.draw_lines(frame, lines, ld.choose_colors(danger))
 
             # traffic sign detection
             height, width, _ = frame.shape
