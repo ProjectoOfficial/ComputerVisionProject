@@ -4,12 +4,10 @@ import sys
 
 from Camera import camera
 from Models.YOLOv7 import yolo_test
-from traffic import lane_assistant
 
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
 sys.path.append(parent)
-
 
 def main(opt):
 
@@ -23,10 +21,6 @@ def main(opt):
 
         camera.main(opt)
 
-    if opt.lane_assistant:
-
-        lane_assistant.main()
-
 
 if __name__ == '__main__':
 
@@ -35,7 +29,6 @@ if __name__ == '__main__':
     # input choice
     parser.add_argument('-d', '--dataset', action='store_true', help='the source is bdd100k')
     parser.add_argument('-c', '--camera', action='store_true', help='the source is the camera')
-    parser.add_argument('-l', '--lane-assistant', action='store_true', help='use a lane assistant in real time or not')
 
     # required parameters
     parser.add_argument('-b', '--batch-size', type=int, default=1, help='YOLOv7 batch-size')
@@ -76,6 +69,7 @@ if __name__ == '__main__':
     parser.add_argument('-r', '--resolution', type=tuple, default=(1280, 720), help='camera resolution')
     parser.add_argument('-rt', '--rotate', action='store_true', default=False, help='rotate frame for e-con camera')
     parser.add_argument('-s', '--save-sign', action='store_true', default=False, help='save frames which contain signs')
+    parser.add_argument('-ln', '--lane-assistant', action='store_true', default=True, help='Enable the lane assistant')
 
     opt = parser.parse_args()
 
