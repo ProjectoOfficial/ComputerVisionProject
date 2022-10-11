@@ -69,7 +69,7 @@ if __name__ == '__main__':
     parser.add_argument('-r', '--resolution', type=tuple, default=(1280, 720), help='camera resolution')
     parser.add_argument('-rt', '--rotate', action='store_true', default=False, help='rotate frame for e-con camera')
     parser.add_argument('-s', '--save-sign', action='store_true', default=False, help='save frames which contain signs')
-    parser.add_argument('-ln', '--lane-assistant', action='store_true', default=True, help='Enable the lane assistant')
+    parser.add_argument('-ln', '--lane-assistant', action='store_false', default=True, help='Enable the lane assistant')
 
     opt = parser.parse_args()
 

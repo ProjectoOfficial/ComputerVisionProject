@@ -340,7 +340,7 @@ if __name__ == "__main__":
     parser.add_argument('-sh', '--save-hybrid', action='store_true', default=False, help='YOLOv7 save hybrid')
     parser.add_argument('-st', '--save-txt', action='store_true', default=False, help='YOLOv7 save txt')
     parser.add_argument('-w', '--weights', type=str, default=os.path.join(parent, 'Models', 'YOLOv7', 'last.pt') , help='YOLOv7 weights')
-    parser.add_argument('-ln', '--lane-assistant', action='store_false', default=False, help='Enable the lane assistant')
+    parser.add_argument('-ln', '--lane-assistant', action='store_false', default=True, help='Enable the lane assistant')
 
     opt = parser.parse_args()
 

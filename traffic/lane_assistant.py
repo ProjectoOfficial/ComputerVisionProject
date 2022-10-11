@@ -243,12 +243,6 @@ class LaneDetector():
 #treat it as an image, otherwise as a video.
 def main(opt):
 
-    #opt.real_time = False   #Enable if you want to process a video in real-time with the IP Webcam App
-    #opt.post = False        #Enable if you want to see the video with the mask applied, in order to see what the program see (useful if you need to set the mask properly)
-    #opt.bilateral = True    #Enable if you want to use the bilateral filter, if False the the standard Gaussian Blur is performed (but bilateral works better)
-    #opt.save_video = False  #Enable if you want to save the video in the directory RESULTS, with the same file name as the input (default extension is ".avi")
-    #opt.file = '6.jpg'
-
     filepath = INPUT / opt.file
     filename = str(filepath)
 
@@ -393,7 +387,7 @@ if __name__ == '__main__':
 
     parser.add_argument('-rtm', '--real-time', action='store_true', default=False, help='Enable if you want to process a video in real-time with the IP Webcam App')
     parser.add_argument('-ps', '--post', action='store_true', default=False, help='Enable if you want to see the video with the mask applied, in order to see what the program see (useful if you need to set the mask properly)')
-    parser.add_argument('-bl', '--bilateral', action='store_true', default=False, help='Enable if you want to use the bilateral filter, if False the the standard Gaussian Blur is performed (but bilateral works better)')
+    parser.add_argument('-bl', '--bilateral', action='store_false', default=True, help='Enable if you want to use the bilateral filter, if False the the standard Gaussian Blur is performed (but bilateral works better)')
     parser.add_argument('-sv', '--save-video', action='store_true', default=False, help='Enable if you want to save the video in the directory RESULTS, with the same file name as the input (default extension is ".avi")')
     parser.add_argument('-fl', '--file', type=str, help='Name of the file')
 
