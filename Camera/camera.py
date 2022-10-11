@@ -16,8 +16,7 @@ import csv
 
 from pynput.keyboard import Listener
 
-from traffic import lane_assistant
-from RTCamera import RTCamera
+from Camera import RTCamera
 from Geometry import Geometry
 from Preprocessing import Preprocessing
 from Distance import Distance
