@@ -1,22 +1,22 @@
 from audioop import cross
 from genericpath import isdir, isfile
+import os
 import numpy as np
 import cv2 as cv
 import math
+import argparse
 
-
-import os
 import time
 import shutil
 from typing import Union, Tuple
 from pathlib import Path
 
 #Change Input path, the specific filename is specified and appended in the main
-INPUT = Path(r'C:\Users\daniel\Documents\GitHub Repositories\ComputerVisionProject\traffic\photos')
+INPUT = Path(os.path.dirname(os.path.abspath(__file__))+'/photos')
+
 #Results is the path in which you want to save the processed video if you enable
 #save_video in the main(), the name of the file by default is the same as the input video
-RESULTS = Path('C:\\Users\\ricca\\OneDrive\\Desktop\\targhe\\results')
-
+RESULTS = Path(os.path.dirname(os.path.abspath(__file__))+'/results')
 
 #class used for writing and drawing on the image
 class LaneAnnotator():
@@ -241,15 +241,12 @@ class LaneDetector():
 
 #the program can take both an image and a video, if the extension is jpg or png it will
 #treat it as an image, otherwise as a video.
-def main():
-    real_time = False   #Enable if you want to process a video in real-time with the IP Webcam App
-    post = False        #Enable if you want to see the video with the mask applied, in order to see what the program see (useful if you need to set the mask properly)
-    bilateral = True    #Enable if you want to use the bilateral filter, if False the the standard Gaussian Blur is performed (but bilateral works better)
-    save_video = False  #Enable if you want to save the video in the directory RESULTS, with the same file name as the input (default extension is ".avi")
-    file = '6.jpg'
-    filepath = INPUT / file
+def main(opt):
+
+    filepath = INPUT / opt.file
     filename = str(filepath)
-    if not real_time:
+
+    if not opt.real_time:
         ext = filepath.suffix
         images_ext = [".jpg", ".png"]
         #IMAGE
@@ -262,11 +259,11 @@ def main():
             if frame.size == 0:
                 exit(0)
             #Only one of the following 2 lines must be commented:
-            lines = ld.detect(frame, bilateral= bilateral)                              #show real frame
+            lines = ld.detect(frame, bilateral= opt.bilateral)                              #show real frame
             #frame, lines = ld.detect_debug(frame, bilateral = bilateral, post = post)  #show edges frame (for debug purposes)
             danger = ld.is_danger(lines=lines)
             frame_out = ld.draw_lines(frame, lines, ld.choose_colors(danger))
-            name = "bilateral " if bilateral else "blur "
+            name = "bilateral " if opt.bilateral else "blur "
             cv.imshow(name, cv.resize(frame_out, (600, 800)))
             cv.waitKey(0)
             cv.destroyAllWindows()
@@ -286,7 +283,7 @@ def main():
             frame = cv.resize(frame, dims)
             cv.imwrite(str(INPUT / 'blabla.jpg'), frame)
             ld = LaneDetector(frame.shape[1], frame.shape[0])
-            if not save_video:
+            if not opt.save_video:
                 while True:
                     ret, frame = cap.read()
                     if not ret:
@@ -294,7 +291,7 @@ def main():
                         break
                     frame = cv.resize(frame, dims)
                     #Only one of the following 2 lines must be commented:
-                    lines = ld.detect(frame, bilateral= bilateral)                              #show real frame
+                    lines = ld.detect(frame, bilateral= opt.bilateral)                              #show real frame
                     #frame, lines = ld.detect_debug(frame, bilateral = bilateral, post = post)  #show edges frame (for debug purposes)
                     danger = ld.is_danger(lines=lines)
                     frame_out = ld.draw_lines(frame, lines, ld.choose_colors(danger))
@@ -313,8 +310,8 @@ def main():
             else:
                 if not os.path.isdir(str(RESULTS)):
                     os.mkdir(str(RESULTS))
-                index = file.find('.')
-                file = file[0:index]
+                index = opt.file.find('.')
+                file = opt.file[0:index]
                 ext = '.avi'
                 results_dir = str(RESULTS)
                 if os.path.isfile(results_dir + '\\' + file+ext):
@@ -330,7 +327,7 @@ def main():
                         break
                     frame = cv.resize(frame, dims)
                     #Only one of the following 2 lines must be commented:
-                    lines = ld.detect(frame, bilateral= bilateral)                              #show real frame
+                    lines = ld.detect(frame, bilateral= opt.bilateral)                              #show real frame
                     #frame, lines = ld.detect_debug(frame, bilateral = bilateral, post = post)  #show edges frame (for debug purposes)
                     danger = ld.is_danger(lines=lines)
                     frame_out = ld.draw_lines(frame, lines, ld.choose_colors(danger))
@@ -367,7 +364,7 @@ def main():
             #frame = cv.resize(frame, dims)
             frame = cv.resize(frame, dims)
             #Only one of the following 2 lines must be commented:
-            lines = ld.detect(frame, bilateral= bilateral)                              #show real frame
+            lines = ld.detect(frame, bilateral= opt.bilateral)                              #show real frame
             #frame, lines = ld.detect_debug(frame, bilateral = bilateral, post = post)  #show edges frame (for debug purposes)
             danger = ld.is_danger(lines=lines)
             frame_out = ld.draw_lines(frame, lines, ld.choose_colors(danger))
@@ -385,4 +382,15 @@ def main():
 
     
 if __name__ == '__main__':
-    main()
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('-rtm', '--real-time', action='store_true', default=False, help='Enable if you want to process a video in real-time with the IP Webcam App')
+    parser.add_argument('-ps', '--post', action='store_true', default=False, help='Enable if you want to see the video with the mask applied, in order to see what the program see (useful if you need to set the mask properly)')
+    parser.add_argument('-bl', '--bilateral', action='store_false', default=True, help='Enable if you want to use the bilateral filter, if False the the standard Gaussian Blur is performed (but bilateral works better)')
+    parser.add_argument('-sv', '--save-video', action='store_true', default=False, help='Enable if you want to save the video in the directory RESULTS, with the same file name as the input (default extension is ".avi")')
+    parser.add_argument('-fl', '--file', type=str, help='Name of the file')
+
+    opt = parser.parse_args()
+
+    main(opt)

@@ -7,7 +7,7 @@ import torch
 import torch.backends.cudnn as cudnn
 from numpy import random
 
-from models.experimental import attempt_load
+from Models.YOLOv7.models.experimental import attempt_load
 from utils.datasets import LoadStreams, LoadImages
 from utils.general import check_img_size, check_requirements, check_imshow, non_max_suppression, apply_classifier, \
     scale_coords, xyxy2xywh, strip_optimizer, set_logging, increment_path
@@ -63,6 +63,8 @@ class Detect:
         if self.device.type != 'cpu':
             self.model(torch.zeros(1, 3, imgsz, imgsz).to(self.device).type_as(next(self.model.parameters())))  # run once
         t0 = time.time()
+
+
         for path, img, im0s, vid_cap in dataset:
             img = torch.from_numpy(img).to(self.device)
             img = img.half() if half else img.float()  # uint8 to fp16/32
@@ -107,11 +109,11 @@ class Detect:
                             plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=3)
 
                 # Stream results
-                if view_img:
-                    resized = cv2.resize(im0, (1280, 720))
-                    cv2.imshow(str(p), resized)
-                    cv2.waitKey(0)  # 1 millisecond
-                    cv2.destroyAllWindows()
+                # if view_img:
+                #     resized = cv2.resize(im0, (1280, 720))
+                #     cv2.imshow(str(p), resized)
+                #     cv2.waitKey(0)  # 1 millisecond
+                #     cv2.destroyAllWindows()
 
                 # Save results (image with detections)
                 if save_img:
@@ -120,6 +122,8 @@ class Detect:
                         print(f" The image with the result is saved in: {save_path}")
 
         print(f'Done. ({time.time() - t0:.3f}s)')
+
+        return im0
 
 import os
 import sys
@@ -130,5 +134,5 @@ sys.path.append(parent)
 
 if __name__ == '__main__':
     with torch.no_grad():
-        detect = Detect(weights=current+r'\yolov7.pt')
-        detect.static_detect(source=current+r'\inference\images', save_path=current+r'\runs\detect', view_img=True)
+        detect = Detect(weights=current+r'/50EPOCHE.pt')
+        detect.static_detect(source=current+r'/inference/images', save_path=current+r'/runs/detect', view_img=True)

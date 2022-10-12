@@ -7,9 +7,7 @@ import shutil
 from typing import Union, Tuple
 from pathlib import Path
 path_root = Path(__file__).parents[1]
-#print(path_root)
 sys.path.append(str(path_root))
-#print(sys.path)
 
 #from models.YOLOv7.utils.general import xyxy2xywhn
 from Models.YOLOv7.utils.general import xyxy2xywhn
@@ -230,9 +228,9 @@ class Annotator():
   def __init__(self, w: int = 1080, h: int = 1920):
     self.font = cv.FONT_HERSHEY_SIMPLEX
     self.org = (w//2, round(h//10*9.5))
-    self.fontScale = 2
+    self.fontScale = 1
     self.color = (0, 0, 255)
-    self.thickness = 3
+    self.thickness = 2
 
   def write(self, img: np.ndarray, speed: int, updates: int):
     if speed == 0:

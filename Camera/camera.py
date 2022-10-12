@@ -16,7 +16,7 @@ import csv
 
 from pynput.keyboard import Listener
 
-from RTCamera import RTCamera
+from Camera import RTCamera
 from Geometry import Geometry
 from Preprocessing import Preprocessing
 from Distance import Distance
@@ -247,12 +247,13 @@ def main(opt):
                 tracker.clear_objects()
 
             # lane detection
-            h = frame.shape[0]
-            w = frame.shape[1]
-            ld = LaneDetector(w, h)
-            lines = ld.detect(frame, bilateral=True) 
-            danger = ld.is_danger(lines=lines)
-            frame = ld.draw_lines(frame, lines, ld.choose_colors(danger))
+            if(opt.lane_assistant):
+                h = frame.shape[0]
+                w = frame.shape[1]
+                ld = LaneDetector(w, h)
+                lines = ld.detect(frame, bilateral=True)
+                danger = ld.is_danger(lines=lines)
+                frame = ld.draw_lines(frame, lines, ld.choose_colors(danger))
 
             # traffic sign detection
             height, width, _ = frame.shape
@@ -321,6 +322,8 @@ if __name__ == "__main__":
     parser.add_argument('-sh', '--save-hybrid', action='store_true', default=False, help='YOLOv7 save hybrid')
     parser.add_argument('-st', '--save-txt', action='store_true', default=False, help='YOLOv7 save txt')
     parser.add_argument('-w', '--weights', type=str, default=os.path.join(parent, 'Models', 'YOLOv7', 'last.pt') , help='YOLOv7 weights')
+    parser.add_argument('-ln', '--lane-assistant', action='store_false', default=True, help='Enable the lane assistant')
+
     opt = parser.parse_args()
 
     main(opt)
