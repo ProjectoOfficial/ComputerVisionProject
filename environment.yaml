@@ -28,5 +28,6 @@ dependencies:
     - wandb
     - gdown
     - pycocotools
+    - colorama
 
 
