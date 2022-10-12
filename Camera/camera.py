@@ -14,9 +14,7 @@ import time
 from datetime import datetime
 import csv
 
-from pynput.keyboard import Listener
-
-from Camera import RTCamera
+from Camera.RTCamera import RTCamera
 from Geometry import Geometry
 from Preprocessing import Preprocessing
 from Distance import Distance
@@ -82,8 +80,7 @@ def main(opt):
         f.close()
 
     print(opt.resolution)
-    camera = RTCamera(opt.camera_device, fps=opt.fps, resolution=opt.resolution, cuda=True, auto_exposure=False,
-                      rotation=ROTATION, exposure=opt.exposure)
+    camera = RTCamera(opt.camera_device, fps=opt.fps, resolution=opt.resolution, cuda=False, auto_exposure=False, rotation=ROTATION, exposure=opt.exposure)
     camera.start()
 
     start_fps = time.monotonic()
@@ -247,13 +244,12 @@ def main(opt):
                 tracker.clear_objects()
 
             # lane detection
-            if(opt.lane_assistant):
-                h = frame.shape[0]
-                w = frame.shape[1]
-                ld = LaneDetector(w, h)
-                lines = ld.detect(frame, bilateral=True)
-                danger = ld.is_danger(lines=lines)
-                frame = ld.draw_lines(frame, lines, ld.choose_colors(danger))
+            h = frame.shape[0]
+            w = frame.shape[1]
+            ld = LaneDetector(w, h)
+            lines = ld.detect(frame, bilateral=True)
+            danger = ld.is_danger(lines=lines)
+            frame = ld.draw_lines(frame, lines, ld.choose_colors(danger))
 
             # traffic sign detection
             height, width, _ = frame.shape
@@ -322,7 +318,6 @@ if __name__ == "__main__":
     parser.add_argument('-sh', '--save-hybrid', action='store_true', default=False, help='YOLOv7 save hybrid')
     parser.add_argument('-st', '--save-txt', action='store_true', default=False, help='YOLOv7 save txt')
     parser.add_argument('-w', '--weights', type=str, default=os.path.join(parent, 'Models', 'YOLOv7', 'last.pt') , help='YOLOv7 weights')
-    parser.add_argument('-ln', '--lane-assistant', action='store_false', default=True, help='Enable the lane assistant')
 
     opt = parser.parse_args()
 
