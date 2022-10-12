@@ -28,23 +28,6 @@ from traffic.lane_assistant import LaneDetector
 from Models.YOLOv7.yolo_test import Test
 from Models.YOLOv7.utils.general import increment_path, non_max_suppression, scale_coords, xyxy2xywh
 
-PRESSED_KEY = ''
-RECORDING = False
-BLUR = False
-TRANSFORMS = False
-CHESSBOARD = False
-ROTATION = None
-
-def on_press(key):
-    global PRESSED_KEY
-    if hasattr(key, 'char'):
-        if key.char is not None:
-            if key.char in "aqrgescibtf": # add here a letter if you want to insert a new command
-                PRESSED_KEY = key.char
-
-listener = Listener(on_press=on_press)
-preprocessor = Preprocessing((640, 640))
-
 def resolution(s):
     try:
         y, x = map(int, s.split(','))
@@ -53,6 +36,14 @@ def resolution(s):
         raise argparse.ArgumentTypeError("Resolution must be W, H")
 
 def main(opt):
+    preprocessor = Preprocessing((640, 640))
+
+    RECORDING = False
+    BLUR = False
+    TRANSFORMS = False
+    CHESSBOARD = False
+    ROTATION = None
+
     opt.save_txt |= opt.save_hybrid
     opt.camera_device = int(opt.camera_device) if opt.camera_device.isnumeric() else opt.camera_device
 
@@ -97,7 +88,6 @@ def main(opt):
 
     start_fps = time.monotonic()
     fps = 0
-    listener.start()
 
     sd = Sign_Detector()
     an = Annotator(*opt.resolution)
@@ -137,67 +127,64 @@ def main(opt):
                 fps = camera.get_fps()
                 start_fps = time.monotonic()
 
-            if PRESSED_KEY == 'q':  # QUIT
+            key = cv2.waitKey(1)
+
+            if key == ord('q'):  # QUIT
                 if label_file is not None:
                     label_file.close()
-                listener.stop()
-                listener.join()
                 print("closing!")
                 break
 
-            elif PRESSED_KEY == 'r':  # REGISTER/STOP RECORDING
+            elif key == ord('r'):  # REGISTER/STOP RECORDING
                 if not RECORDING:
                     print("recording started...")
-                    camera.register(os.path.join(current, "Recordings", "{}__{}.mp4".format(opt.filename,
-                                                                                            datetime.now().strftime(
-                                                                                                "%d_%m_%Y__%H_%M_%S"))))
+                    camera.register(os.path.join(current, "Recordings", "{}__{}.mp4".format(opt.filename, datetime.now().strftime("%d_%m_%Y__%H_%M_%S"))))
                     RECORDING = True
                 else:
                     camera.stop_recording()
                     print("recording stopped!")
                     RECORDING = False
 
-            elif PRESSED_KEY == 'g' and not RECORDING:  # CHANGE GAMMA
+            elif key == ord('g') and not RECORDING:  # CHANGE GAMMA
                 gamma = float(input("please insert gamma value: "))
                 camera.set_gamma(gamma)
 
-            elif PRESSED_KEY == 'a' and not RECORDING:  # CHANGE ALPHA AND BETA
+            elif key == ord('a') and not RECORDING:  # CHANGE ALPHA AND BETA
                 clip = float(input("insert clip percentage: "))
                 camera.calc_bc(clip)
 
-            elif PRESSED_KEY == 'e' and not RECORDING:  # CHANGE EXPOSURE
+            elif key == ('e') and not RECORDING:  # CHANGE EXPOSURE
                 try:
                     exp = float(input("please insert the exposure: "))
                     camera.set_exposure(exp)
                 except:
                     print("Error during exposure read")
 
-            elif PRESSED_KEY == 's' and not RECORDING:  # SAVE CURRENT FRAME
-                path = os.path.join(current, 'Calibration',
-                                    'frame_{}.jpg'.format(datetime.now().strftime("%d_%m_%Y__%H_%M_%S")))
+            elif key == ord('s') and not RECORDING:  # SAVE CURRENT FRAME
+                path = os.path.join(current, 'Calibration', 'frame_{}.jpg'.format(datetime.now().strftime("%d_%m_%Y__%H_%M_%S")))
                 camera.save_frame(path)
 
                 print("saved frame {} ".format(path))
 
-            elif PRESSED_KEY == 'c' and not RECORDING:  # CALIBRATE CAMERA
+            elif key == ord('c') and not RECORDING:  # CALIBRATE CAMERA
                 print("Calibration in process, please wait...\n")
                 cv2.destroyAllWindows()
                 geometry = Geometry(os.path.join(current, 'Calibration'))
                 calibrated, mtx, dist, rvecs, tvecs = geometry.get_calibration()
                 camera.calibrate(calibrated, mtx, dist, rvecs, tvecs)
 
-            elif PRESSED_KEY == 'i':  # SHOW MEAN VALUE OF CURRENT FRAME
+            elif key == ord('i'):  # SHOW MEAN VALUE OF CURRENT FRAME
                 print("Frame AVG value: {}".format(frame.mean(axis=(0, 1, 2))))
 
-            elif PRESSED_KEY == 'b':  # BLUR FRAME
+            elif key == ord('b'):  # BLUR FRAME
                 BLUR = not BLUR
                 print("blur: {}".format(BLUR))
 
-            elif PRESSED_KEY == 't' and not RECORDING:  # APPLY TRANSFORMS TO FRAME
+            elif key == ord('t') and not RECORDING:  # APPLY TRANSFORMS TO FRAME
                 TRANSFORMS = not TRANSFORMS
                 print("transform: {}".format(TRANSFORMS))
 
-            elif PRESSED_KEY == 'f' and not RECORDING:  # SHOW CHESSBOARD
+            elif key == ord('f') and not RECORDING:  # SHOW CHESSBOARD
                 CHESSBOARD = not CHESSBOARD
                 print("Chessboard: {}".format(CHESSBOARD))
                 cv2.destroyAllWindows()
@@ -210,13 +197,9 @@ def main(opt):
 
             if CHESSBOARD:
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                ret, corners = cv2.findChessboardCorners(gray, (7, 9),
-                                                         cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_FAST_CHECK)
+                ret, corners = cv2.findChessboardCorners(gray, (9, 6), cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_FAST_CHECK)
                 if ret:
-                    cv2.drawChessboardCorners(frame, (7, 9), corners, ret)
-
-            if PRESSED_KEY != '':
-                PRESSED_KEY = ''
+                    cv2.drawChessboardCorners(frame, (9, 6), corners, ret)
 
             if not opt.jetson:
                 # Object Recognition
