@@ -3,6 +3,7 @@ import os
 import sys
 from pathlib import Path
 import argparse
+from tkinter import W
 
 current = os.path.dirname(os.path.realpath(__file__))  
 parent = os.path.dirname(current)
@@ -92,7 +93,7 @@ def main(opt):
     updates = 0
 
     if opt.calibrate:
-        geometry = Geometry(os.path.join(current, 'Calibration'))
+        geometry = Geometry(os.path.join(current, 'Calibration'), (9, 6))
         calibrated, mtx, dist, rvecs, tvecs = geometry.get_calibration()
         camera.calibrate(calibrated, mtx, dist, rvecs, tvecs)
 
@@ -112,13 +113,11 @@ def main(opt):
         label_writer = csv.writer(label_file)
 
     # Main infinite loop
-    cap =  cv2.VideoCapture(r"C:\Users\daniel\Desktop\video_test.mp4")
     preprocessor = Preprocessing((640, 640))
 
     while True:
-        #frame = camera.get_frame()
-        ret, frame = cap.read()
-        frame = cv2.resize(frame, (640,640))
+        frame = camera.get_frame()
+        #frame = cv2.resize(frame, (640, 640))
 
         if camera.available():
             original = frame.copy()
@@ -169,7 +168,7 @@ def main(opt):
             elif key == ord('c') and not RECORDING:  # CALIBRATE CAMERA
                 print("Calibration in process, please wait...\n")
                 cv2.destroyAllWindows()
-                geometry = Geometry(os.path.join(current, 'Calibration'))
+                geometry = Geometry(os.path.join(current, 'Calibration'), (9, 6))
                 calibrated, mtx, dist, rvecs, tvecs = geometry.get_calibration()
                 camera.calibrate(calibrated, mtx, dist, rvecs, tvecs)
 
@@ -222,7 +221,8 @@ def main(opt):
                             x -= w // 2
                             y -= h // 2
 
-                            detections.append((cls, xywh))
+                            if names[int(cls)] in ['truck', 'other person', 'motorcycle', 'bus', 'other vehicle', 'rider', 'pedestrian', 'bicycle', 'train', 'car', 'trailer']:
+                                detections.append((cls, xywh))
                             distance = Distance().get_Distance(xywh)
                             cv2.rectangle(frame, (x, y), (x + w, y + h), (100, 0, 255), 2)
                             cv2.circle(frame, (x + (w // 2), y + (h // 2)), 4, (40, 55, 255), 4)
@@ -250,20 +250,18 @@ def main(opt):
             lines = ld.detect(frame, bilateral=True)
             danger = ld.is_danger(lines=lines)
             frame = ld.draw_lines(frame, lines, ld.choose_colors(danger))
-            cv2.imwrite(r"C:\Users\daniel\Documents\GitHub Repositories\PaperCV\images\lane\{}.jpg".format(datetime.now().strftime("%d_%m_%Y__%H_%M_%S")), frame)
 
             # traffic sign detection
-            height, width, _ = frame.shape
             h_perc = 5
             w_perc = 50
 
-            h, w, _ = frame.shape
+            height, width, _ = frame.shape
             h = (h * h_perc) // 100
             w = (w * w_perc) // 100
 
             frame = cv2.line(frame, (w, h), (width, h), (255, 0, 0), 2)
-            frame = cv2.line(frame, (w, h), (w, frame.shape[0] - h), (255, 0, 0), 2)
-            frame = cv2.line(frame, (w, frame.shape[0] - h), (width, frame.shape[0] - h), (255, 0, 0), 2)
+            frame = cv2.line(frame, (w, h), (w, height - h), (255, 0, 0), 2)
+            frame = cv2.line(frame, (w, height - h), (width, height - h), (255, 0, 0), 2)
 
             found, c, s, u = sd.detect(original.copy(), h_perc, w_perc, show_results=False)
             if found and s != 0:
@@ -320,6 +318,8 @@ if __name__ == "__main__":
     parser.add_argument('-w', '--weights', type=str, default=os.path.join(parent, 'Models', 'YOLOv7', '50EPOCHE.pt') , help='YOLOv7 weights')
 
     opt = parser.parse_args()
+    opt.camera_device = "1"
+    opt.calibrate = 1
 
     main(opt)
 
