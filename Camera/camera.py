@@ -34,8 +34,6 @@ def resolution(s):
         raise argparse.ArgumentTypeError("Resolution must be W, H")
 
 def main(opt):
-    preprocessor = Preprocessing((640, 640))
-
     RECORDING = False
     BLUR = False
     TRANSFORMS = False
@@ -114,8 +112,13 @@ def main(opt):
         label_writer = csv.writer(label_file)
 
     # Main infinite loop
+    cap =  cv2.VideoCapture(r"C:\Users\daniel\Desktop\video_test.mp4")
+    preprocessor = Preprocessing((640, 640))
+
     while True:
-        frame = camera.get_frame()
+        #frame = camera.get_frame()
+        ret, frame = cap.read()
+        frame = cv2.resize(frame, (640,640))
 
         if camera.available():
             original = frame.copy()
@@ -216,13 +219,14 @@ def main(opt):
                             xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4))).view(-1)  # xywh
                             xywh = [int(x) for x in xywh]
                             x, y, w, h = xywh
+                            x -= w // 2
+                            y -= h // 2
 
                             detections.append((cls, xywh))
                             distance = Distance().get_Distance(xywh)
                             cv2.rectangle(frame, (x, y), (x + w, y + h), (100, 0, 255), 2)
                             cv2.circle(frame, (x + (w // 2), y + (h // 2)), 4, (40, 55, 255), 4)
-                            cv2.putText(frame, "{:.2f} {} {:.2f}".format(conf, names[int(cls)], distance),
-                                        (x + 5, y + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (255, 0, 255), 1)
+                            cv2.putText(frame, "{:.2f} {} {:.2f}".format(conf, names[int(cls)], distance), (x + 5, y + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (255, 0, 255), 1)
 
                 # Tracking
                 hsvframe = cv2.cvtColor(original.copy(), cv2.COLOR_RGB2HSV)
@@ -234,13 +238,9 @@ def main(opt):
                     id = tracker.update_obj(cls, box)
 
                     prediction, pts = tracker.track(hsvframe, box)
-                    cv2.putText(frame, "ID: {}".format(id), (x - 60, y + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6,
-                                (255, 0, 255), 1)
-                    cv2.putText(frame, "ID: {}".format(id),
-                                (int(prediction[0] - (0.5 * w)) + 5, int(prediction[1] - (0.5 * h)) + 20),
-                                cv2.FONT_HERSHEY_COMPLEX, 0.6, (255, 0, 255), 1)
-                    cv2.rectangle(frame, (int(prediction[0] - (0.5 * w)), int(prediction[1] - (0.5 * h))),
-                                  (int(prediction[0] + (0.5 * w)), int(prediction[1] + (0.5 * h))), (0, 255, 0), 2)
+                    cv2.putText(frame, "ID: {}".format(id), (x - 60, y + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (255, 0, 255), 1)
+                    cv2.putText(frame, "ID: {}".format(id), (int(prediction[0] - (0.5 * w)) + 5, int(prediction[1] - (0.5 * h)) + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (255, 0, 255), 1)
+                    cv2.rectangle(frame, (int(prediction[0] - (0.5 * w)), int(prediction[1] - (0.5 * h))), (int(prediction[0] + (0.5 * w)), int(prediction[1] + (0.5 * h))), (0, 255, 0), 2)
                 tracker.clear_objects()
 
             # lane detection
@@ -250,6 +250,7 @@ def main(opt):
             lines = ld.detect(frame, bilateral=True)
             danger = ld.is_danger(lines=lines)
             frame = ld.draw_lines(frame, lines, ld.choose_colors(danger))
+            cv2.imwrite(r"C:\Users\daniel\Documents\GitHub Repositories\PaperCV\images\lane\{}.jpg".format(datetime.now().strftime("%d_%m_%Y__%H_%M_%S")), frame)
 
             # traffic sign detection
             height, width, _ = frame.shape
@@ -278,8 +279,7 @@ def main(opt):
                         if not os.path.isfile(fpath):
                             saved = cv2.imwrite(fpath, original)
                             if saved:
-                                sign_label = [fname, sign_bb[0][0], sign_bb[0][1], sign_bb[1][0], sign_bb[1][1], speed,
-                                              1]
+                                sign_label = [fname, sign_bb[0][0], sign_bb[0][1], sign_bb[1][0], sign_bb[1][1], speed, 1]
                                 label_writer.writerow(sign_label)
 
                 if opt.save_sign:
@@ -317,7 +317,7 @@ if __name__ == "__main__":
     parser.add_argument('-s', '--save-sign', action='store_true', default=False, help='save frames which contain signs')
     parser.add_argument('-sh', '--save-hybrid', action='store_true', default=False, help='YOLOv7 save hybrid')
     parser.add_argument('-st', '--save-txt', action='store_true', default=False, help='YOLOv7 save txt')
-    parser.add_argument('-w', '--weights', type=str, default=os.path.join(parent, 'Models', 'YOLOv7', 'last.pt') , help='YOLOv7 weights')
+    parser.add_argument('-w', '--weights', type=str, default=os.path.join(parent, 'Models', 'YOLOv7', '50EPOCHE.pt') , help='YOLOv7 weights')
 
     opt = parser.parse_args()
 

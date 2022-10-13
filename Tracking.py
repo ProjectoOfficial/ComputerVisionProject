@@ -33,7 +33,7 @@ class Tracking:
     def track(self, hsvframe , bbox):
         x, y, w, h = bbox
         roi = hsvframe[y - (h//2): y + (h//2), x - (w//2): x + (w//2)]
-        cv2.imshow("ROI", cv2.resize(roi, (w*2, h*2)))
+        #cv2.imshow("ROI", cv2.resize(roi, (w*2, h*2)))
 
         mask = cv2.inRange(roi, np.array((0., float(self.s_lower), float(self.v_lower))), np.array((180., float(self.s_upper), float(self.v_upper))))
         roi_hist = cv2.calcHist([roi], [0, 1], mask, [180, 255], [0, 180, 0, 255])
