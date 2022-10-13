@@ -71,27 +71,32 @@ def object_recognition(frame, save_dir):
     return frame
 
 
-def detector_signs(frame, original):
+def detector_signs(frame, original, speed, updates):
     sd = Sign_Detector()
     an = Annotator(*opt.resolution)
     an.org = (20, 50)
 
     height, width, _ = frame.shape
-
     h_perc = 5
     w_perc = 50
 
-    h = (height * h_perc) // 100
-    w = (width * w_perc) // 100
+    h, w, _ = frame.shape
+    h = (h * h_perc) // 100
+    w = (w * w_perc) // 100
 
-    an = traffic.Annotator(width, height)
-    an.org = (20, 50)
-    found, circles, speed, updates = sd.detect(frame, h_perc, w_perc, show_results=False)
-    if found:
-        an.write(frame, speed, updates)
-        frame = an.draw_bb(frame, sd.extract_bb(circles, h, w))
+    found, c, s, u = sd.detect(original.copy(), h_perc, w_perc, show_results=False)
 
-    return frame
+    if found and s != 0:
+        circles, speed, updates = c, s, u
+
+        if circles is not None:
+            sign_bb = sd.extract_bb(circles, h, w)
+            frame = an.draw_bb(frame, sign_bb)
+
+    an.write(frame, speed, updates)
+    # frame = cv2.resize(frame, (1280, 720))
+
+    return frame, speed, updates
 
 
 def detector_lane(frame, original):
@@ -112,6 +117,9 @@ def main(opt):
 
     if opt.test:
 
+        speed = 0
+        updates = 0
+
         filename = opt.test_data
 
         # image
@@ -131,7 +139,7 @@ def main(opt):
             # detection signs
             print('detection signs')
             frame = cv2.resize(frame, (1280, 720))
-            frame = detector_signs(frame, original)
+            frame, speed, updates = detector_signs(frame, original, speed, updates)
 
             # lane detection
             print('lane detection')
@@ -169,7 +177,7 @@ def main(opt):
                     frame = cv2.resize(frame, (1280, 720))
 
                     # detection signs
-                    frame = detector_signs(frame, original)
+                    frame, speed, updates = detector_signs(frame, original, speed, updates)
 
                     # lane assistant
                     frame_out = detector_lane(frame, original)
@@ -218,7 +226,7 @@ def main(opt):
                     frame = cv2.resize(frame, (1280, 720))
 
                     # detection signs
-                    frame = detector_signs(frame, original)
+                    frame, speed, updates = detector_signs(frame, original, speed, updates)
 
                     # lane assistant
                     frame_out = detector_lane(frame, original)
