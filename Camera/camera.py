@@ -318,8 +318,6 @@ if __name__ == "__main__":
     parser.add_argument('-w', '--weights', type=str, default=os.path.join(parent, 'Models', 'YOLOv7', '50EPOCHE.pt') , help='YOLOv7 weights')
 
     opt = parser.parse_args()
-    opt.camera_device = "1"
-    opt.calibrate = 1
 
     main(opt)
 
