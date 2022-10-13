@@ -9,13 +9,13 @@ class Geometry(object):
             - Camera calibration
     '''
 
-    def __init__(self, path):
+    def __init__(self, path, checkboard = (9, 6)):
         self.path = path
 
-        self.checkboard = (7, 9)
+        self.checkboard = checkboard
 
         self.criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
-        self.obj_points = np.zeros((self.checkboard[0]*self.checkboard[1], 3), np.float32)
+        self.obj_points = np.zeros((self.checkboard[0] * self.checkboard[1], 3), np.float32)
         self.obj_points[:, :2] = np.mgrid[0: self.checkboard[0], 0:self.checkboard[1]].T.reshape(-1, 2)
 
         self.object_points = []
@@ -27,7 +27,7 @@ class Geometry(object):
         self.rvecs = None
         self.tvecs = None
 
-        self.images = glob.glob(self.path + '*.jpg')
+        self.images = glob.glob(self.path + r'\*.jpg')
 
     def get_calibration(self):
         '''

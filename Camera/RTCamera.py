@@ -153,7 +153,7 @@ class RTCamera(object):
             return None
 
         if self.has_calibration:
-            self.calibrate()
+            self.read_calibrated()
 
         if isinstance(self.frame, cv2.cuda_GpuMat):
             dst = self.frame.download()
@@ -252,7 +252,7 @@ class RTCamera(object):
             h, w = self.frame.shape[:2]
             newcameramtx, roi = cv2.getOptimalNewCameraMatrix(self.mtx, self.dist, (w,h), 1, (w,h))
             mapx, mapy = cv2.initUndistortRectifyMap(self.mtx, self.dist, None, newcameramtx, (w,h), 5)
-            dst = cv2.undistort(self.frame, self.mtx, self.dist, None, newcameramtx)
+            dst = cv2.remap(self.frame, mapx, mapy, cv2.INTER_LINEAR)
             # crop the image
             x, y, w, h = roi
         dst = dst[y:y+h, x:x+w]
@@ -273,7 +273,7 @@ class RTCamera(object):
             accumulator.append(accumulator[i - 1] + float(hist[i]))
 
         maximum = accumulator[-1]
-        clip_perc *= (maximum/100.0) 
+        clip_perc *= (maximum / 100.0) 
         clip_perc /= 2
 
         minimum_gray = 0
@@ -336,7 +336,7 @@ class RTCamera(object):
     @staticmethod
     def rotate_image(image: np.ndarray, angle: int) -> np.ndarray:
         (h, w) = image.shape[:2]
-        center = (w//2, h//2)
+        center = (w // 2, h // 2)
         rot_mat = cv2.getRotationMatrix2D(center, angle, 1.0)
 
         result = None
