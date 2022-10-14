@@ -33,6 +33,7 @@ TEMPLATES_DIR = ROOT_DIR / 'templates_solo_bordo'
 
 def object_recognition(frame, save_dir):
     preprocessor = Preprocessing((640, 640))
+    frame = cv2.resize(frame, (640, 640))
 
     tester = Test(opt.weights, opt.batch_size, opt.device, save_dir)
 
@@ -56,17 +57,13 @@ def object_recognition(frame, save_dir):
                 x, y, w, h = xywh
                 x -= w // 2
                 y -= h // 2
-                x *= 2
-                y = int(y * 1.125)
-                w *= 2
-                h = int(h * 1.125)
 
                 detections.append((cls, xywh))
                 distance = Distance().get_Distance(xywh)
                 cv2.rectangle(frame, (x, y), (x + w, y + h), (100, 0, 255), 2)
                 cv2.circle(frame, (x + (w // 2), y + (h // 2)), 4, (40, 55, 255), 4)
-                cv2.putText(frame, "{:.2f} {} {:.2f}".format(conf, names[int(cls)], distance),
-                            (x + 5, y + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (255, 0, 255), 1)
+                cv2.putText(frame, "{:.2f} {} {:.2f}".format(conf, names[int(cls)], distance), (x + 5, y + 20),
+                            cv2.FONT_HERSHEY_COMPLEX, 0.6, (255, 0, 255), 1)
 
     return frame
 
