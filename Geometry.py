@@ -51,7 +51,7 @@ class Geometry(object):
                 cv2.imshow('image', img)
                 cv2.waitKey(500)
                 
-                cv2.destroyAllWindows()
+        cv2.destroyAllWindows()
         
         if gray is None:
             return False, None, None, None, None

@@ -32,14 +32,14 @@ class Tracking:
 
     def track(self, hsvframe , bbox):
         x, y, w, h = bbox
-        roi = hsvframe[y - (h//2): y + (h//2), x - (w//2): x + (w//2)]
+        roi = hsvframe[y: y + h, x : x + w]
         #cv2.imshow("ROI", cv2.resize(roi, (w*2, h*2)))
 
         mask = cv2.inRange(roi, np.array((0., float(self.s_lower), float(self.v_lower))), np.array((180., float(self.s_upper), float(self.v_upper))))
         roi_hist = cv2.calcHist([roi], [0, 1], mask, [180, 255], [0, 180, 0, 255])
         cv2.normalize(roi_hist, roi_hist, 0, 255, cv2.NORM_MINMAX)
 
-        track_window = (x - (w//2), y - (h//2), x + (w//2), y + (h//2))
+        track_window = (x, y, x + w, y + h)
 
         back = cv2.calcBackProject([hsvframe], [0, 1], roi_hist, [0, 180, 0, 255], 1)
         ret, track_window = cv2.CamShift(back, track_window, self.term_crit)
@@ -102,7 +102,9 @@ class Tracking:
 
             for key in keys_to_remove:
                 self.objects.pop(key, None)
-
+        else:
+            self.ids = 0
+        
     def update_obj(self, cls, bbox):
         subkey = -1
         subval = 0
