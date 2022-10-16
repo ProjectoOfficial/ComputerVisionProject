@@ -4,6 +4,7 @@ import sys
 import torch
 import cv2
 import time
+from numpy import random
 
 from Camera import camera
 from pathlib import Path
@@ -12,7 +13,6 @@ from Distance import Distance
 
 from traffic.traffic_video import Sign_Detector, Annotator
 from traffic import lane_assistant
-from traffic import traffic_video as traffic
 
 from Models.YOLOv7.yolo_test import Test
 from Models.YOLOv7.utils.general import increment_path, non_max_suppression, scale_coords, xyxy2xywh
@@ -34,13 +34,9 @@ def resolution(s):
     except:
         raise argparse.ArgumentTypeError("Resolution must be W, H")
 
-def object_recognition(frame, save_dir):
+def object_recognition(frame, tester, names, colors):
 
     preprocessor = Preprocessing(opt.resolution)
-
-    tester = Test(opt.weights, opt.batch_size, opt.device, save_dir)
-
-    names = tester.model.names
 
     # Object Recognition
     img, _ = preprocessor.Transform_base(frame.copy())
@@ -73,9 +69,21 @@ def object_recognition(frame, save_dir):
                 continue
 
             distance = Distance().get_Distance(xywh)
-            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
+
+            label = "{:.2f} {} {:.2f}".format(conf, names[int(cls)], distance)
+            #plot_one_box(xywh, frame, label=label, color=colors[int(cls)], line_thickness=2)
+
+            c1, c2 = (int(xywh[0]), int(xywh[1])), (int(xywh[2]), int(xywh[3]))
+            #cv2.rectangle(frame, c1, c2, colors[int(cls)], thickness=2, lineType=cv2.LINE_AA)
+
+            cv2.rectangle(frame, (x, y), (x + w, y + h), colors[int(cls)], 2)
+
+            tf = max(2 - 1, 1)  # font thickness
+            t_size = cv2.getTextSize(label, 0, fontScale=2 / 3, thickness=tf)[0]
+            c2 = c1[0] + t_size[0], c1[1] - t_size[1] - 3
+            cv2.rectangle(frame, c1, c2, colors[int(cls)], -1, cv2.LINE_AA)  # filled
+            cv2.putText(frame, label, (c1[0], c1[1] - 2), 0, 2 / 3, [225, 255, 255], thickness=tf, lineType=cv2.LINE_AA)
             cv2.circle(frame, (x + (w // 2), y + (h // 2)), 4, (40, 55, 255), 2)
-            cv2.putText(frame, "{:.2f} {} {:.2f}".format(conf, names[int(cls)], distance), (x + 5, y + 20), cv2.FONT_HERSHEY_PLAIN, 1.5, (0, 0, 0), 2)
 
     return frame
 
@@ -121,6 +129,12 @@ def main(opt):
     save_dir = Path(increment_path(Path(opt.project) / opt.name, exist_ok=False))  # increment run
     (save_dir / 'labels' if opt.save_txt else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
 
+    tester = Test(opt.weights, opt.batch_size, opt.device, save_dir)
+
+    names = tester.model.names
+
+    colors = [[random.randint(0, 255) for _ in range(3)] for _ in names]
+
     assert opt.camera is not None or opt.test is not None, 'specify if you want use camera or do a test'
 
     if opt.test:
@@ -143,7 +157,7 @@ def main(opt):
             # Object Recognition
             print('object recognition')
             if not opt.remove_yolo:
-                frame = object_recognition(frame, save_dir)
+                frame = object_recognition(original, tester, names, colors)
 
             # detection signs
             print('detection signs')
@@ -185,7 +199,7 @@ def main(opt):
 
                     # Object Recognition
                     if not opt.remove_yolo:
-                        frame = object_recognition(frame, save_dir)
+                        frame = object_recognition(original, tester, names, colors)
 
 
                     # detection signs
@@ -239,7 +253,7 @@ def main(opt):
 
                     # Object Recognition
                     if not opt.remove_yolo:
-                        frame = object_recognition(frame, save_dir)
+                        frame = object_recognition(original, tester, names, colors)
 
                     # detection signs
                     frame = cv2.resize(frame, opt.resolution)
