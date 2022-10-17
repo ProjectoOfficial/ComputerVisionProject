@@ -4,15 +4,17 @@ import sys
 import torch
 import cv2
 import time
+import numpy as np
+from numpy import random
 
 from Camera import camera
 from pathlib import Path
 from Preprocessing import Preprocessing
 from Distance import Distance
+from Tracking import Tracking
 
 from traffic.traffic_video import Sign_Detector, Annotator
 from traffic import lane_assistant
-from traffic import traffic_video as traffic
 
 from Models.YOLOv7.yolo_test import Test
 from Models.YOLOv7.utils.general import increment_path, non_max_suppression, scale_coords, xyxy2xywh
@@ -26,49 +28,92 @@ sys.path.append(parent)
 RESULTS = Path(os.path.dirname(os.path.abspath(__file__)) + '/results')
 
 ROOT_DIR = Path(os.path.dirname(os.path.abspath(__file__)))  # This is your Project Root
-RESULTS_DIR = ROOT_DIR / 'detected_circles'
-SIGNS_DIR = ROOT_DIR / 'signs'
-TEMPLATES_DIR = ROOT_DIR / 'templates_solo_bordo'
 
 
-def object_recognition(frame, save_dir):
-    preprocessor = Preprocessing((640, 640))
-    frame = cv2.resize(frame, (640, 640))
+def resolution(s):
+    try:
+        y, x = map(int, s.split(','))
+        return (y, x)
+    except:
+        raise argparse.ArgumentTypeError("Resolution must be W, H")
 
-    tester = Test(opt.weights, opt.batch_size, opt.device, save_dir)
 
-    names = tester.model.names
+def object_recognition(frame, tester, names, colors, counters):
+    preprocessor = Preprocessing(opt.resolution)
 
+    # Object Recognition
     img, _ = preprocessor.Transform_base(frame.copy())
     img = torch.from_numpy(img).permute(2, 0, 1).unsqueeze(dim=0)
     out, train_out = tester.predict(img)
     out = non_max_suppression(out, conf_thres=opt.conf_thres, iou_thres=opt.iou_thres, multi_label=True)
 
-    detections = []
-    for si, pred in enumerate(out):
-        predn = pred.clone()
-        ratio = ((1, 1), (0, 0))
-        scale_coords(img.shape[1:], predn[:, :4], (640, 640), ratio)  # native-space pred
+    pred = out[0]  # because we infer only on one image
 
-        for *xyxy, conf, cls in predn.tolist():
-            if conf > 0.7:
-                xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4))).view(-1)  # xywh
-                xywh = [int(x) for x in xywh]
-                x, y, w, h = xywh
-                x -= w // 2
-                y -= h // 2
+    ratio = ((1, 1), (0, 0))
+    scale_coords(img.shape[2:], pred[:, :4], opt.resolution, ratio)  # native-space pred
+    pred[:, :4] = xyxy2xywh(pred[:, :4])
+    pred[:, 0] -= pred[:, 2] / 2
+    pred[:, 1] -= pred[:, 3] / 2
 
-                detections.append((cls, xywh))
-                distance = Distance().get_Distance(xywh)
-                cv2.rectangle(frame, (x, y), (x + w, y + h), (100, 0, 255), 2)
-                cv2.circle(frame, (x + (w // 2), y + (h // 2)), 4, (40, 55, 255), 4)
-                cv2.putText(frame, "{:.2f} {} {:.2f}".format(conf, names[int(cls)], distance), (x + 5, y + 20),
-                            cv2.FONT_HERSHEY_COMPLEX, 0.6, (255, 0, 255), 1)
+    sub = 0
+    if opt.resolution[0] > opt.resolution[1]:
+        sub = (opt.resolution[0] - opt.resolution[1]) / 2
+        pred[:, 1] -= sub
+    elif opt.resolution[0] < opt.resolution[1]:
+        sub = (opt.resolution[1] - opt.resolution[0]) / 2
+        pred[:, 0] -= sub
+
+    for *xywh, conf, cls in pred.tolist():
+        if conf > opt.confidence:
+            xywh = [int(k) for k in xywh]
+            x, y, w, h = xywh
+
+            if h == 0 or w == 0:
+                continue
+
+            distance = Distance().get_Distance(xywh)
+
+            class_ = names[int(cls)]
+            counters[class_] += 1
+
+            label = "{:.2f} {} {:.2f}".format(conf, names[int(cls)], distance)
+            # plot_one_box(xywh, frame, label=label, color=colors[int(cls)], line_thickness=2)
+
+            c1, c2 = (int(xywh[0]), int(xywh[1])), (int(xywh[2]), int(xywh[3]))
+            # cv2.rectangle(frame, c1, c2, colors[int(cls)], thickness=2, lineType=cv2.LINE_AA)
+
+            cv2.rectangle(frame, (x, y), (x + w, y + h), colors[int(cls)], 2)
+
+            tf = max(2 - 1, 1)  # font thickness
+            t_size = cv2.getTextSize(label, 0, fontScale=2 / 3, thickness=tf)[0]
+            c2 = c1[0] + t_size[0], c1[1] - t_size[1] - 3
+            cv2.rectangle(frame, c1, c2, colors[int(cls)], -1, cv2.LINE_AA)  # filled
+            cv2.putText(frame, label, (c1[0], c1[1] - 2), 0, 2 / 3, [225, 255, 255], thickness=tf,
+                        lineType=cv2.LINE_AA)
+            cv2.circle(frame, (x + (w // 2), y + (h // 2)), 4, (40, 55, 255), 2)
+
+    # object counting
+    if not opt.remove_object_counting:
+        margin = 0
+        for i in counters:
+
+            value = counters.get(i)
+            if (value != 0):
+                label = i + ": " + str(value)
+                t_size = cv2.getTextSize(label, 0, fontScale=2 / 3, thickness=1)[0]
+                x = 20
+                y = 100 + (margin * 20)
+                c1, c2 = (x, y), (x+t_size[0], y-t_size[1]-3)
+                cv2.rectangle(frame, c1, c2, [0,0,0], -1, cv2.LINE_AA)  # filled
+                cv2.putText(frame, label, (c1[0], c1[1] - 2), 0, 2 / 3, [255, 255, 255], thickness=1,lineType=cv2.LINE_AA)
+
+                margin += 1
+
+            counters[i] = 0
 
     return frame
 
-
-def detector_signs(frame, original, speed, updates):
+def signs_detector(frame, original, speed, updates):
     sd = Sign_Detector()
     an = Annotator(*opt.resolution)
     an.org = (20, 50)
@@ -91,12 +136,11 @@ def detector_signs(frame, original, speed, updates):
             frame = an.draw_bb(frame, sign_bb)
 
     an.write(frame, speed, updates)
-    # frame = cv2.resize(frame, (1280, 720))
 
     return frame, speed, updates
 
 
-def detector_lane(frame, original):
+def lane_detector(frame, original):
     ld = lane_assistant.LaneDetector(original.shape[1], original.shape[0])
     lines = ld.detect(original, bilateral=opt.bilateral)  # show real frame
     danger = ld.is_danger(lines=lines)
@@ -106,9 +150,16 @@ def detector_lane(frame, original):
 
 
 def main(opt):
-
     save_dir = Path(increment_path(Path(opt.project) / opt.name, exist_ok=False))  # increment run
     (save_dir / 'labels' if opt.save_txt else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
+
+    tester = Test(opt.weights, opt.batch_size, opt.device, save_dir)
+
+    names = tester.model.names
+
+    counters = dict.fromkeys(names, 0)
+
+    colors = [[random.randint(0, 255) for _ in range(3)] for _ in names]
 
     assert opt.camera is not None or opt.test is not None, 'specify if you want use camera or do a test'
 
@@ -127,28 +178,33 @@ def main(opt):
             frame = cv2.imread(filename)
 
             original = frame.copy()
-            original = cv2.resize(original, (1280, 720))
+            original = cv2.resize(original, opt.resolution)
 
             # Object Recognition
             print('object recognition')
-            frame = object_recognition(frame, save_dir)
+            if not opt.remove_yolo:
+                frame = object_recognition(original, tester, names, colors, counters)
 
-            # detection signs
-            print('detection signs')
-            frame = cv2.resize(frame, (1280, 720))
-            frame, speed, updates = detector_signs(frame, original, speed, updates)
+            #  signs detection
+            print('signs detection')
+            frame = cv2.resize(frame, opt.resolution)
+            if not opt.remove_signs_detector:
+                frame, speed, updates = signs_detector(frame, original, speed, updates)
 
             # lane detection
             print('lane detection')
-            frame_out = detector_lane(frame, original)
+            if not opt.remove_lane_assistant:
+                frame = lane_detector(frame, original)
 
-            cv2.imwrite("frame.jpg", frame_out)
+            cv2.imwrite("frame.jpg", frame)
 
         # video
         else:
 
+            print('video')
+
             cap = cv2.VideoCapture(filename)
-            dims = (1280, 720)
+            dims = opt.resolution
             if not cap.isOpened():
                 print("Cannot open camera")
                 exit()
@@ -170,15 +226,22 @@ def main(opt):
                     original = frame.copy()
 
                     # Object Recognition
-                    frame = object_recognition(frame, save_dir)
-                    frame = cv2.resize(frame, (1280, 720))
+                    if not opt.remove_yolo:
+                        #print('object recognition')
+                        frame = object_recognition(original, tester, names, colors, counters)
 
-                    # detection signs
-                    frame, speed, updates = detector_signs(frame, original, speed, updates)
+                    # signs detection
+                    frame = cv2.resize(frame, opt.resolution)
+                    if not opt.remove_signs_detector:
+                        #print('signs detection')
+                        frame, speed, updates = signs_detector(frame, original, speed, updates)
 
                     # lane assistant
-                    frame_out = detector_lane(frame, original)
-                    cv2.imshow('frame', cv2.resize(frame_out, (1280, 720)))
+                    if not opt.remove_lane_assistant:
+                        #print('lane assistant')
+                        frame = lane_detector(frame, original)
+
+                    cv2.imshow('frame', cv2.resize(frame, opt.resolution))
 
                     if cv2.waitKey(1) == ord('q'):
                         break
@@ -207,7 +270,7 @@ def main(opt):
                             file = file + '(' + str(j) + ')'
                             break
                 out_video = cv2.VideoWriter(str(RESULTS / (file + '.avi')), cv2.VideoWriter_fourcc(*'XVID'), 30,
-                                            (1280, 720))
+                                            opt.resolution)
                 while True:
                     ret, frame = cap.read()
                     if not ret:
@@ -219,16 +282,23 @@ def main(opt):
                     original = frame.copy()
 
                     # Object Recognition
-                    frame = object_recognition(frame, save_dir)
-                    frame = cv2.resize(frame, (1280, 720))
+                    if not opt.remove_yolo:
+                        #print('object recognition')
+                        frame = object_recognition(original, tester, names, colors, counters)
 
-                    # detection signs
-                    frame, speed, updates = detector_signs(frame, original, speed, updates)
+                    # signs detection
+                    frame = cv2.resize(frame, opt.resolution)
+                    if not opt.remove_signs_detector:
+                        #print('signs detector')
+                        frame, speed, updates = signs_detector(frame, original, speed, updates)
 
                     # lane assistant
-                    frame_out = detector_lane(frame, original)
+                    if not opt.remove_lane_assistant:
+                        #print('lane assistant')
+                        frame = lane_detector(frame, original)
 
-                    out_video.write(frame_out)
+                    out_video.write(frame)
+                    print('frame: ' + str(i+1))
                     i += 1
 
                 # When everything done, release the capture
@@ -249,12 +319,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog='main.py')
 
     # input choice
-    parser.add_argument('-d', '--dataset', action='store_true', help='the source is bdd100k')
+    parser.add_argument('-t', '--test', action='store_true', default=False,
+                        help='Enable for doing test on image or video')
     parser.add_argument('-c', '--camera', action='store_true', help='the source is the camera')
 
     # test case
-    parser.add_argument('-t', '--test', action='store_true', default=False,
-                        help='Enable for doing test on image or video')
     parser.add_argument('-tv', '--test-video', action='store_true', default=False,
                         help='Enable for use video like test data test')
     parser.add_argument('-sv', '--save-video', action='store_true', default=False,
@@ -262,39 +331,50 @@ if __name__ == '__main__':
     parser.add_argument('-td', '--test-data', type=str, default=os.path.join(ROOT_DIR, 'traffic/photos', '4.jpg'),
                         help='*.test_data path')
     parser.add_argument('-fl', '--file', type=str, help='Name of the file')
-
-    # required parameters
-    parser.add_argument('-b', '--batch-size', type=int, default=1, help='YOLOv7 batch-size')
-    parser.add_argument('-ct', '--conf-thres', type=float, default=0.001, help='YOLOv7 conf threshold')
-    parser.add_argument('-dev', '--device', type=str, default='0', help='cuda device(s)')
-    parser.add_argument('-it', '--iou-thres', type=float, default=0.65, help='YOLOv7 iou threshold')
-    parser.add_argument('-n', '--name', type=str, default='test_dir', help='YOLOv7 result test directory name')
-    parser.add_argument('-p', '--project', type=str, default=os.path.join(current, 'Models', 'YOLOv7', 'runs', 'test'),
-                        help='YOLOv7 project save directory')
-    parser.add_argument('-sh', '--save-hybrid', action='store_true', default=False, help='YOLOv7 save hybrid')
-    parser.add_argument('-st', '--save-txt', action='store_true', default=False, help='YOLOv7 save txt')
-    parser.add_argument('-w', '--weights', type=str, default=os.path.join(parent, 'Models', 'YOLOv7', 'last.pt'),
-                        help='YOLOv7 weights')
+    parser.add_argument('-rml', '--remove-lane-assistant', action='store_true', default=False,
+                        help='Disable the lane assistant')
+    parser.add_argument('-rms', '--remove-signs-detector', action='store_true', default=False,
+                        help='Disable the signs detector')
+    parser.add_argument('-rmy', '--remove-yolo', action='store_true', default=False,
+                        help='Disable the object recognition with Yolo')
+    parser.add_argument('-rmc', '--remove-object-counting', action='store_true', default=False,
+                        help='Disable the object counting')
 
     # camera parameters
-    parser.add_argument('-cal', '--calibrate', action='store_true', default=False,
+    parser.add_argument('-b', '--batch-size', type=int, default=1, help='YOLOv7 batch-size')
+    parser.add_argument('-cl', '--calibrate', action='store_true', default=False,
                         help='true if you want to calibrate the camera')
-    parser.add_argument('-cd', '--camera-device', type=int, default=0, help='Camera device ID')
+    parser.add_argument('-cd', '--camera-device', type=str, default='0', help='Camera device ID')
+    parser.add_argument('-ct', '--conf-thres', type=float, default=0.001, help='YOLOv7 conf threshold')
+    parser.add_argument('-cf', '--confidence', type=float, default=0.25,
+                        help='YOLOv7 confidence on prediction threshold')
+    parser.add_argument('-d', '--device', type=str, default='0', help='cuda device(s)')
+    parser.add_argument('-exp', '--exposure', type=int, default=-5, help='Sets camera exposure')
+    parser.add_argument('-it', '--iou-thres', type=float, default=0.65, help='YOLOv7 iou threshold')
     parser.add_argument('-f', '--filename', type=str, default='out', help='filename for recordings')
+    parser.add_argument('-fps', '--fps', type=int, default=60, help='Sets camera FPS')
     parser.add_argument('-j', '--jetson', action='store_true', default=False,
                         help='true if you are using the Nvidia Jetson Nano')
-    parser.add_argument('-lb', '--label', action='store_true', default=False,
+    parser.add_argument('-l', '--label', action='store_true', default=False,
                         help='true if you want to save labelled signs')
-    parser.add_argument('-r', '--resolution', type=tuple, default=(1280, 720), help='camera resolution')
+    parser.add_argument('-n', '--name', type=str, default='camera', help='YOLOv7 result test directory name')
+    parser.add_argument('-p', '--project', type=str, default=os.path.join(parent, 'Models', 'YOLOv7', 'runs', 'test'),
+                        help='YOLOv7 project save directory')
+    parser.add_argument('-pt', '--path', type=str, default="", help='path file in case of image or video as source')
     parser.add_argument('-rt', '--rotate', action='store_true', default=False, help='rotate frame for e-con camera')
     parser.add_argument('-s', '--save-sign', action='store_true', default=False, help='save frames which contain signs')
-    parser.add_argument('-ln', '--lane-assistant', action='store_false', default=True, help='Enable the lane assistant')
+    parser.add_argument('-sc', '--source', type=str, default="live", help='source: video, image, live')
+    parser.add_argument('-sh', '--save-hybrid', action='store_true', default=False, help='YOLOv7 save hybrid')
+    parser.add_argument('-st', '--save-txt', action='store_true', default=False, help='YOLOv7 save txt')
+    parser.add_argument('-tr', '--track', action='store_true', default=False, help='track objects recognized by YOLOv7')
+    parser.add_argument('-v', '--verbose', action='store_true', default=False, help='show stuff on the frame')
+    parser.add_argument('-w', '--weights', type=str, default=os.path.join(parent, 'Models', 'YOLOv7', '50EPOCHE.pt'),
+                        help='YOLOv7 weights')
+
+    # resolution
+    parser.add_argument('-r', '--resolution', type=tuple, default=(1280, 720), help='define the resolution')
 
     # lane_assistant parameters
-    parser.add_argument('-rtm', '--real-time', action='store_true', default=False,
-                        help='Enable if you want to process a video in real-time with the IP Webcam App')
-    parser.add_argument('-ps', '--post', action='store_true', default=False,
-                        help='Enable if you want to see the video with the mask applied, in order to see what the program see (useful if you need to set the mask properly)')
     parser.add_argument('-bl', '--bilateral', action='store_false', default=True,
                         help='Enable if you want to use the bilateral filter, if False the the standard Gaussian Blur is performed (but bilateral works better)')
 
