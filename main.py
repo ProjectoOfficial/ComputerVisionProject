@@ -11,6 +11,7 @@ from Camera import camera
 from pathlib import Path
 from Preprocessing import Preprocessing
 from Distance import Distance
+from Tracking import Tracking
 
 from traffic.traffic_video import Sign_Detector, Annotator
 from traffic import lane_assistant
@@ -92,22 +93,25 @@ def object_recognition(frame, tester, names, colors, counters):
             cv2.circle(frame, (x + (w // 2), y + (h // 2)), 4, (40, 55, 255), 2)
 
     # object counting
-    if not opt.remore_object_counting:
+    if not opt.remove_object_counting:
         margin = 0
         for i in counters:
 
             value = counters.get(i)
-
             if (value != 0):
-                cv2.putText(frame, i + " " + str(value),
-                            (opt.resolution[0] // 2, (opt.resolution[1] // 8) * 7 - (margin * 20)), 0, 2 / 3,
-                            [255, 255, 255], thickness=1, lineType=cv2.LINE_AA)
+                label = i + ": " + str(value)
+                t_size = cv2.getTextSize(label, 0, fontScale=2 / 3, thickness=1)[0]
+                x = 20
+                y = 100 + (margin * 20)
+                c1, c2 = (x, y), (x+t_size[0], y-t_size[1]-3)
+                cv2.rectangle(frame, c1, c2, [0,0,0], -1, cv2.LINE_AA)  # filled
+                cv2.putText(frame, label, (c1[0], c1[1] - 2), 0, 2 / 3, [255, 255, 255], thickness=1,lineType=cv2.LINE_AA)
+
                 margin += 1
 
             counters[i] = 0
 
     return frame
-
 
 def signs_detector(frame, original, speed, updates):
     sd = Sign_Detector()
@@ -294,6 +298,7 @@ def main(opt):
                         frame = lane_detector(frame, original)
 
                     out_video.write(frame)
+                    print('frame: ' + str(i+1))
                     i += 1
 
                 # When everything done, release the capture
