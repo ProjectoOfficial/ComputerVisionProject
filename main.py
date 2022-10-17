@@ -4,6 +4,7 @@ import sys
 import torch
 import cv2
 import time
+import numpy as np
 from numpy import random
 
 from Camera import camera
@@ -27,6 +28,7 @@ RESULTS = Path(os.path.dirname(os.path.abspath(__file__)) + '/results')
 
 ROOT_DIR = Path(os.path.dirname(os.path.abspath(__file__)))  # This is your Project Root
 
+
 def resolution(s):
     try:
         y, x = map(int, s.split(','))
@@ -34,8 +36,8 @@ def resolution(s):
     except:
         raise argparse.ArgumentTypeError("Resolution must be W, H")
 
-def object_recognition(frame, tester, names, colors):
 
+def object_recognition(frame, tester, names, colors, counters):
     preprocessor = Preprocessing(opt.resolution)
 
     # Object Recognition
@@ -70,11 +72,14 @@ def object_recognition(frame, tester, names, colors):
 
             distance = Distance().get_Distance(xywh)
 
+            class_ = names[int(cls)]
+            counters[class_] += 1
+
             label = "{:.2f} {} {:.2f}".format(conf, names[int(cls)], distance)
-            #plot_one_box(xywh, frame, label=label, color=colors[int(cls)], line_thickness=2)
+            # plot_one_box(xywh, frame, label=label, color=colors[int(cls)], line_thickness=2)
 
             c1, c2 = (int(xywh[0]), int(xywh[1])), (int(xywh[2]), int(xywh[3]))
-            #cv2.rectangle(frame, c1, c2, colors[int(cls)], thickness=2, lineType=cv2.LINE_AA)
+            # cv2.rectangle(frame, c1, c2, colors[int(cls)], thickness=2, lineType=cv2.LINE_AA)
 
             cv2.rectangle(frame, (x, y), (x + w, y + h), colors[int(cls)], 2)
 
@@ -82,13 +87,29 @@ def object_recognition(frame, tester, names, colors):
             t_size = cv2.getTextSize(label, 0, fontScale=2 / 3, thickness=tf)[0]
             c2 = c1[0] + t_size[0], c1[1] - t_size[1] - 3
             cv2.rectangle(frame, c1, c2, colors[int(cls)], -1, cv2.LINE_AA)  # filled
-            cv2.putText(frame, label, (c1[0], c1[1] - 2), 0, 2 / 3, [225, 255, 255], thickness=tf, lineType=cv2.LINE_AA)
+            cv2.putText(frame, label, (c1[0], c1[1] - 2), 0, 2 / 3, [225, 255, 255], thickness=tf,
+                        lineType=cv2.LINE_AA)
             cv2.circle(frame, (x + (w // 2), y + (h // 2)), 4, (40, 55, 255), 2)
+
+    # object counting
+    if not opt.remore_object_counting:
+        margin = 0
+        for i in counters:
+
+            value = counters.get(i)
+
+            if (value != 0):
+                cv2.putText(frame, i + " " + str(value),
+                            (opt.resolution[0] // 2, (opt.resolution[1] // 8) * 7 - (margin * 20)), 0, 2 / 3,
+                            [255, 255, 255], thickness=1, lineType=cv2.LINE_AA)
+                margin += 1
+
+            counters[i] = 0
 
     return frame
 
 
-def detector_signs(frame, original, speed, updates):
+def signs_detector(frame, original, speed, updates):
     sd = Sign_Detector()
     an = Annotator(*opt.resolution)
     an.org = (20, 50)
@@ -115,7 +136,7 @@ def detector_signs(frame, original, speed, updates):
     return frame, speed, updates
 
 
-def detector_lane(frame, original):
+def lane_detector(frame, original):
     ld = lane_assistant.LaneDetector(original.shape[1], original.shape[0])
     lines = ld.detect(original, bilateral=opt.bilateral)  # show real frame
     danger = ld.is_danger(lines=lines)
@@ -125,13 +146,14 @@ def detector_lane(frame, original):
 
 
 def main(opt):
-
     save_dir = Path(increment_path(Path(opt.project) / opt.name, exist_ok=False))  # increment run
     (save_dir / 'labels' if opt.save_txt else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
 
     tester = Test(opt.weights, opt.batch_size, opt.device, save_dir)
 
     names = tester.model.names
+
+    counters = dict.fromkeys(names, 0)
 
     colors = [[random.randint(0, 255) for _ in range(3)] for _ in names]
 
@@ -157,23 +179,25 @@ def main(opt):
             # Object Recognition
             print('object recognition')
             if not opt.remove_yolo:
-                frame = object_recognition(original, tester, names, colors)
+                frame = object_recognition(original, tester, names, colors, counters)
 
-            # detection signs
-            print('detection signs')
+            #  signs detection
+            print('signs detection')
             frame = cv2.resize(frame, opt.resolution)
             if not opt.remove_signs_detector:
-                frame, speed, updates = detector_signs(frame, original, speed, updates)
+                frame, speed, updates = signs_detector(frame, original, speed, updates)
 
             # lane detection
             print('lane detection')
             if not opt.remove_lane_assistant:
-                frame = detector_lane(frame, original)
+                frame = lane_detector(frame, original)
 
             cv2.imwrite("frame.jpg", frame)
 
         # video
         else:
+
+            print('video')
 
             cap = cv2.VideoCapture(filename)
             dims = opt.resolution
@@ -199,17 +223,19 @@ def main(opt):
 
                     # Object Recognition
                     if not opt.remove_yolo:
-                        frame = object_recognition(original, tester, names, colors)
+                        #print('object recognition')
+                        frame = object_recognition(original, tester, names, colors, counters)
 
-
-                    # detection signs
+                    # signs detection
                     frame = cv2.resize(frame, opt.resolution)
                     if not opt.remove_signs_detector:
-                        frame, speed, updates = detector_signs(frame, original, speed, updates)
+                        #print('signs detection')
+                        frame, speed, updates = signs_detector(frame, original, speed, updates)
 
                     # lane assistant
                     if not opt.remove_lane_assistant:
-                        frame = detector_lane(frame, original)
+                        #print('lane assistant')
+                        frame = lane_detector(frame, original)
 
                     cv2.imshow('frame', cv2.resize(frame, opt.resolution))
 
@@ -253,16 +279,19 @@ def main(opt):
 
                     # Object Recognition
                     if not opt.remove_yolo:
-                        frame = object_recognition(original, tester, names, colors)
+                        #print('object recognition')
+                        frame = object_recognition(original, tester, names, colors, counters)
 
-                    # detection signs
+                    # signs detection
                     frame = cv2.resize(frame, opt.resolution)
                     if not opt.remove_signs_detector:
-                        frame, speed, updates = detector_signs(frame, original, speed, updates)
+                        #print('signs detector')
+                        frame, speed, updates = signs_detector(frame, original, speed, updates)
 
                     # lane assistant
                     if not opt.remove_lane_assistant:
-                        frame = detector_lane(frame, original)
+                        #print('lane assistant')
+                        frame = lane_detector(frame, original)
 
                     out_video.write(frame)
                     i += 1
@@ -285,7 +314,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog='main.py')
 
     # input choice
-    parser.add_argument('-t', '--test', action='store_true', default=False, help='Enable for doing test on image or video')
+    parser.add_argument('-t', '--test', action='store_true', default=False,
+                        help='Enable for doing test on image or video')
     parser.add_argument('-c', '--camera', action='store_true', help='the source is the camera')
 
     # test case
@@ -302,6 +332,8 @@ if __name__ == '__main__':
                         help='Disable the signs detector')
     parser.add_argument('-rmy', '--remove-yolo', action='store_true', default=False,
                         help='Disable the object recognition with Yolo')
+    parser.add_argument('-rmc', '--remove-object-counting', action='store_true', default=False,
+                        help='Disable the object counting')
 
     # camera parameters
     parser.add_argument('-b', '--batch-size', type=int, default=1, help='YOLOv7 batch-size')
@@ -334,7 +366,7 @@ if __name__ == '__main__':
     parser.add_argument('-w', '--weights', type=str, default=os.path.join(parent, 'Models', 'YOLOv7', '50EPOCHE.pt'),
                         help='YOLOv7 weights')
 
-    #resolution
+    # resolution
     parser.add_argument('-r', '--resolution', type=tuple, default=(1280, 720), help='define the resolution')
 
     # lane_assistant parameters
