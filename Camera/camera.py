@@ -295,11 +295,12 @@ def main(opt):
             # lane detection
             h = frame.shape[0]
             w = frame.shape[1]
-            ld = LaneDetector(w, h)
-            lines = ld.detect(frame, bilateral=True)
-            danger = ld.is_danger(lines=lines)
-            if opt.verbose:
-                frame = ld.draw_lines(frame, lines, ld.choose_colors(danger))
+            if opt.lane_assistant:
+                ld = LaneDetector(w, h)
+                lines = ld.detect(frame, bilateral=True)
+                danger = ld.is_danger(lines=lines)
+                if opt.verbose:
+                    frame = ld.draw_lines(frame, lines, ld.choose_colors(danger))
 
             # traffic sign detection
             h_perc = 5
@@ -342,6 +343,9 @@ def main(opt):
 
         if opt.source == "image":
             cv2.waitKey(0)
+            answer = input("Do you want to save the frame? Y/N ")
+            if answer.upper() == 'Y':
+                print(cv2.imwrite("{}.jpg".format(datetime.now().strftime("%d_%m_%Y__%H_%M_%S")), frame))
             break
 
     if opt.source == "live":
@@ -365,6 +369,7 @@ if __name__ == "__main__":
     parser.add_argument('-fps', '--fps', type=int, default=60, help='Sets camera FPS')
     parser.add_argument('-j', '--jetson', action='store_true', default=False, help='true if you are using the Nvidia Jetson Nano')
     parser.add_argument('-l', '--label', action='store_true', default=False, help='true if you want to save labelled signs')
+    parser.add_argument('-ln', '--lane-assistant', action='store_true', default=False, help='true if you want to use lane assistant')
     parser.add_argument('-n', '--name', type=str, default='camera', help='YOLOv7 result test directory name')
     parser.add_argument('-p', '--project', type=str, default=os.path.join(parent, 'Models', 'YOLOv7', 'runs', 'test') , help='YOLOv7 project save directory')
     parser.add_argument('-pt', '--path', type=str, default="", help='path file in case of image or video as source')    
@@ -380,10 +385,11 @@ if __name__ == "__main__":
 
     opt = parser.parse_args()
 
-    opt.path = r"C:\Users\daniel\Desktop\video_test.mp4"
-    opt.source = "video"
+    #opt.path = r"C:\Users\daniel\Documents\GitHub Repositories\ComputerVisionProject\Camera\ItalianSigns\images\5138.jpg"
+    #opt.source = "image"
+    #opt.jetson = True
     #opt.verbose = True
-    opt.track = True
+    #opt.track = True
     #opt.confidence = 0.85
 
     assert opt.source in ["image", "video", "live"], "invalid source"
