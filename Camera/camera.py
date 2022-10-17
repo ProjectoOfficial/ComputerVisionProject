@@ -22,6 +22,7 @@ from traffic.traffic_video import Sign_Detector, Annotator
 from Tracking import Tracking
 from traffic.lane_assistant import LaneDetector
 
+from collections import Counter
 
 from Models.YOLOv7.yolo_test import Test
 from Models.YOLOv7.utils.general import increment_path, non_max_suppression, scale_coords, xyxy2xywh
@@ -256,25 +257,37 @@ def main(opt):
                 elif opt.resolution[0] < opt.resolution[1]:
                     sub = (opt.resolution[1] - opt.resolution[0]) / 2
                     pred[:, 0] -= sub
+
+                obj_counter = {'truck': 0, 'other person': 0, 'motorcycle': 0, 'bus': 0, 'other vehicle': 0, 'rider': 0, 'pedestrian': 0, 'bicycle': 0, \
+                        'train': 0, 'car': 0, 'trailer': 0, 'traffic sign': 0, 'traffic light': 0}
                 
-                if opt.verbose:
-                    for *xywh, conf, cls in pred.tolist():
-                        if conf > opt.confidence:
-                            xywh = [int(k) for k in xywh]
-                            x, y, w, h = xywh
+                for *xywh, conf, cls in pred.tolist():
+                    if conf > opt.confidence:
+                        obj_counter[names[int(cls)]] += 1
+                        xywh = [int(k) for k in xywh]
+                        x, y, w, h = xywh
 
-                            if h == 0 or w == 0:
-                                    continue
+                        if h == 0 or w == 0:
+                            continue
 
-                            distance = Distance().get_Distance(xywh)
+                        distance = Distance().get_Distance(xywh)
+
+                        if opt.verbose:
                             cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
                             cv2.circle(frame, (x + (w // 2), y + (h // 2)), 4, (40, 55, 255), 2)
                             cv2.putText(frame, "{:.2f} {} {:.2f}".format(conf, names[int(cls)], distance), (x + 5, y + 20), cv2.FONT_HERSHEY_PLAIN, 1.5, (0, 0, 0), 2)
+
+                if opt.verbose:
+                    y_pos = frame.shape[0] // 2
+                    for el in obj_counter.keys():
+                        cv2.putText(frame, "{}: {}".format(el, obj_counter[el]), (15, y_pos + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (255, 25, 25), 2)
+                        y_pos += 20
 
                 # Tracking
                 if opt.track:
                     hsvframe = cv2.cvtColor(original.copy(), cv2.COLOR_RGB2HSV)
                     tracker.zero_objects()
+
                     for *box, conf, cls in pred.tolist():
                         if names[int(cls)] in ['truck', 'other person', 'motorcycle', 'bus', 'other vehicle', 'rider', 'pedestrian', 'bicycle', 'train', 'car', 'trailer']:   
                             if conf > opt.confidence:
@@ -385,8 +398,8 @@ if __name__ == "__main__":
 
     opt = parser.parse_args()
 
-    #opt.path = r"C:\Users\daniel\Documents\GitHub Repositories\ComputerVisionProject\Camera\ItalianSigns\images\5138.jpg"
-    #opt.source = "image"
+    #opt.path = r"C:\Users\daniel\Desktop\video_test.mp4"
+    #opt.source = "video"
     #opt.jetson = True
     #opt.verbose = True
     #opt.track = True
