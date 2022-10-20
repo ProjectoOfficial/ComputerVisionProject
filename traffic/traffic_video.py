@@ -18,26 +18,6 @@ SIGNS_DIR = ROOT_DIR / 'signs'
 TEMPLATES_DIR = ROOT_DIR / 'templates_solo_bordo'
 
 """
-def check_rotation(path_video_file):
-  # this returns meta-data of the video file in form of a dictionary
-  meta_dict = ffmpeg.probe(path_video_file)  
-  # from the dictionary, meta_dict['streams'][0]['tags']['rotate'] is the key
-  # we are looking for
-  rotateCode = None
-  if int(meta_dict['streams'][0]['tags']['rotate']) == 90:
-      rotateCode = cv.ROTATE_90_CLOCKWISE
-  elif int(meta_dict['streams'][0]['tags']['rotate']) == 180:
-      rotateCode = cv.ROTATE_180
-  elif int(meta_dict['streams'][0]['tags']['rotate']) == 270:
-      rotateCode = cv.ROTATE_90_COUNTERCLOCKWISE  
-  return rotateCode
-
-def correct_rotation(frame, rotateCode):  
-  return cv.rotate(frame, rotateCode) 
-
-"""
-
-"""
 Class to perform preprocessing on the input frames, we have:
 1) Gaussian Kernel sliding on the image in order to smooth the noise
 2) Conversion from BGR to HSV colorspace, in order to better detect the "redness" of the traffic signs' border

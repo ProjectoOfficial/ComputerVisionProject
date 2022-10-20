@@ -398,12 +398,12 @@ if __name__ == "__main__":
 
     opt = parser.parse_args()
 
-    opt.path = r"C:\Users\daniel\Desktop\video_test.mp4"
-    opt.source = "video"
+    #opt.path = r"C:\Users\daniel\Desktop\video_test.mp4"
+    #opt.source = "video"
     #opt.jetson = True
-    opt.verbose = True
-    opt.track = True
-    opt.confidence = 0.85
+    #opt.verbose = True
+    #opt.track = True
+    #opt.confidence = 0.85
 
     assert opt.source in ["image", "video", "live"], "invalid source"
     if opt.source in ["image", "video"]:

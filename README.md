@@ -8,6 +8,74 @@
 * [Lets Keep in Touch](#Lets-Keep-in-Touch)
 * [About](#About)
 
+### Instructions
+1) install the environment with Anaconda
+    ``` shell
+    conda env create -f environment.yml
+    ```
+2) activate the environment
+    ``` shell
+    conda activate cvp
+    ```
+
+3) for running the inference script on an image
+    ``` shell
+    python main.py -t -td 'path/to/image' -w '/path/to/50EPOCHE.pt'
+    ```
+
+4) for running the inference script on a video
+    ``` shell
+    python main.py -t -tv -sv -td '/path/to/video' -w 'path/to/50EPOCHE.pt' -fl 'test_video.avi'
+    ```
+
+4) (alternative) inference run
+    ``` shell
+    python camera.py -pt 'path/to/image_or_video' -sc 'video' -w '/path/to/50EPOCHE.pt' --verbose --track --confidence 0.85 --device '0'
+    ```
+
+#### main.py options
+```shell
+-t or--test: Enable for doing test on image or video
+-tv or --test-video: Enable for use video like test data test
+-sv or --save-video: Enable if you want save the test video
+-td or --test-data: *.test_data path
+-fl or --file: Name of the file
+-rml or --remove-lane-assistant: Disable the lane assistant
+-rms or --remove-signs-detector: Disable the signs detector
+-rmy or --remove-yolo: Disable the object recognition with Yolo
+-rmc or--remove-object-counting: Disable the object countin
+```
+
+#### camera.py options
+``` shell
+    -b or --batch-size: YOLOv7 batch-size
+    -c or --calibrate: true if you want to calibrate the camera
+    -cd or --camera-device: Camera device ID
+    -ct or --conf-thres: YOLOv7 conf threshold
+    -cf or --confidence: YOLOv7 confidence on prediction threshold
+    -d or --device: cuda device(s)
+    -exp --exposure: Sets camera exposure
+    -it or --iou-thres: YOLOv7 iou threshold
+    -f or--filename: filename for recordings
+    -fps or --fps: Sets camera FPS
+    -j or --jetson: true if you are using the Nvidia Jetson Nano
+    -l or --label: true if you want to save labelled signs
+    -ln or --lane-assistant: true if you want to use lane assistant
+    -n or --name: YOLOv7 result test directory name
+    -p or --project: YOLOv7 project save directory
+    -pt or --path: path file in case of image or video as source    
+    -r or --resolution: camera resolution
+    -rt or --rotate: rotate the frame (for e-con camera)
+    -s or --save-sign: save frames which contain signs
+    -sc or --source: source: video, image, live  
+    -sh or --save-hybrid: YOLOv7 save hybrid
+    -st or --save-txt: YOLOv7 save txt
+    -t or --track: track objects recognized by YOLOv7
+    -v or --verbose: show stuff on the frame (e.g. bounding boxes, labels, etc.)
+    -w or --weights: YOLOv7 weights
+
+```
+
 ### Abstract
 <p>In this project we want to implement a series of solutions that could be an integral part of an autonomous driving system. The aim of the project is to analyze the road context, recognize the surrounding objects and predict an accident risk.
 Our system is based on a data processing pipeline that starts from the acquisition of images by a camera, or from a dataset, through imaging processing stages and neural networks.</p>
