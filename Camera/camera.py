@@ -298,7 +298,7 @@ def main(opt):
                                     continue
 
                                 id = tracker.update_obj(cls, box)
-                                prediction, pts = tracker.track(hsvframe, box)
+                                prediction, pts = tracker.track(hsvframe, box, id)
                                 if opt.verbose:
                                     cv2.putText(frame, "ID: {}".format(id), (x - 60, y + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (100, 100, 255), 1)
                                     cv2.putText(frame, "ID: {}".format(id), (int(prediction[0] - (0.5 * w)) + 5, int(prediction[1] - (0.5 * h)) + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (100, 100, 255), 1)
@@ -398,12 +398,12 @@ if __name__ == "__main__":
 
     opt = parser.parse_args()
 
-    #opt.path = r"C:\Users\daniel\Desktop\video_test.mp4"
-    #opt.source = "video"
+    opt.path = r"C:\Users\daniel\Desktop\video_test.mp4"
+    opt.source = "video"
     #opt.jetson = True
-    #opt.verbose = True
-    #opt.track = True
-    #opt.confidence = 0.85
+    opt.verbose = True
+    opt.track = True
+    opt.confidence = 0.85
 
     assert opt.source in ["image", "video", "live"], "invalid source"
     if opt.source in ["image", "video"]:

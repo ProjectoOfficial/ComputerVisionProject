@@ -6,31 +6,17 @@ import torch
 from Models.YOLOv7.utils.general import xywh2xyxy
 class Tracking:
     def __init__(self):
-        self.objects = { } # ID : [label, actual bbox, prev bbox, IOU, updated]
+        self.objects = dict() # ID : [label, actual bbox, prev bbox, IOU, updated]
+        self.trackers = dict() # ID : Kalman filter
         self.ids = 0
 
-        self.kalman = cv2.KalmanFilter(4, 2)
-        self.kalman.measurementMatrix = np.array([[1, 0, 0, 0],
-                                            [0, 1, 0, 0]], np.float32)
-
-        self.kalman.transitionMatrix = np.array([[1, 0, 1, 0],
-                                            [0, 1, 0, 1],
-                                            [0, 0, 1, 0],
-                                            [0, 0, 0, 1]], np.float32)
-
-        self.kalman.processNoiseCov = np.array([[1, 0, 0, 0],
-                                        [0, 1, 0, 0],
-                                        [0, 0, 1, 0],
-                                        [0, 0, 0, 1]], np.float32) * 0.03
-
         self.term_crit = ( cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 1 )
-
         self.s_lower = 60
         self.s_upper = 255
         self.v_lower = 32
         self.v_upper = 255
 
-    def track(self, hsvframe , bbox):
+    def track(self, hsvframe , bbox, id):
         x, y, w, h = bbox
         roi = hsvframe[y: y + h, x : x + w]
         #cv2.imshow("ROI", cv2.resize(roi, (w*2, h*2)))
@@ -47,8 +33,8 @@ class Tracking:
         pts = cv2.boxPoints(ret)
         pts = np.int0(pts)
 
-        self.kalman.correct(self.center(pts))
-        prediction = self.kalman.predict()
+        self.trackers[id].correct(self.center(pts))
+        prediction = self.trackers[id].predict()
 
         return prediction, pts
 
@@ -102,9 +88,26 @@ class Tracking:
 
             for key in keys_to_remove:
                 self.objects.pop(key, None)
+                self.trackers.pop(key, None)
         else:
             self.ids = 0
-        
+
+    def kalman_create(self):
+        kalman = cv2.KalmanFilter(4, 2)
+        kalman.measurementMatrix = np.array([[1, 0, 0, 0],
+                                            [0, 1, 0, 0]], np.float32)
+
+        kalman.transitionMatrix = np.array([[1, 0, 1, 0],
+                                            [0, 1, 0, 1],
+                                            [0, 0, 1, 0],
+                                            [0, 0, 0, 1]], np.float32)
+
+        kalman.processNoiseCov = np.array([[1, 0, 0, 0],
+                                        [0, 1, 0, 0],
+                                        [0, 0, 1, 0],
+                                        [0, 0, 0, 1]], np.float32) * 0.03
+        return kalman
+
     def update_obj(self, cls, bbox):
         subkey = -1
         subval = 0
@@ -119,16 +122,18 @@ class Tracking:
             
             iou = self.box_iou(prev_bbox, actual_bbox)
             if subval < iou:
+                subval = iou
                 subkey = key
         
         id = -1
-        if subkey != -1:
+        if subkey != -1: # object already exists
             self.objects[subkey] = [self.objects[subkey][0], bbox, self.objects[subkey][1], iou, 1]
             id = subkey
-        else:
+        else: # add the new object
             self.ids += 1
             self.objects[self.ids] = [cls, bbox, bbox, 1, 1]
             id = self.ids
+            self.trackers[id] = self.kalman_create()
 
         return id
 
