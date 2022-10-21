@@ -32,6 +32,12 @@
     ``` shell
     python camera.py -pt 'path/to/image_or_video' -sc 'video' -w '/path/to/50EPOCHE.pt' --verbose --track --confidence 0.85 --device '0'
     ```
+    - if you want to track objects, add: -t or --track
+    - if you want to see results plotted on the current frame, add: -v or --verbose
+    - if you do not want to run YOLOv7 (and tracking also), use: -j or --jetson
+    - you can choose the source input between "image", "video", or "live", with: -sc or --source 
+    - you can edit the YOLOv7 cut confidence on recognized objects with: -cf or --confidence (must be between 0 and 1)
+    - if you want to infer on a file, such as an image or video, you must specify the path file with: -pt or --path
 
 #### main.py options
 ```shell
@@ -75,6 +81,10 @@
     -w or --weights: YOLOv7 weights
 
 ```
+
+#### Where you can look at pipeline's results
+- in main.py results are showed into the frame while running a video, infering an image or reading from camera. It is possible to save, for example, the video you are infering by using "-fl filename.avi", and you then can find it into the "results" folder.
+- in camera.py results are also showed on the running frame if you enable "-v or --verbose" mode. It is possible to record a video only while running the script on frames coming from a videocamera. If you infer an image, you then will be asked if you want to save it, and the image will be saved at your command line path.
 
 ### Abstract
 <p>In this project we want to implement a series of solutions that could be an integral part of an autonomous driving system. The aim of the project is to analyze the road context, recognize the surrounding objects and predict an accident risk.
