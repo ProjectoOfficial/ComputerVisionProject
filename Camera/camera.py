@@ -280,8 +280,9 @@ def main(opt):
                 if opt.verbose:
                     y_pos = frame.shape[0] // 2
                     for el in obj_counter.keys():
-                        cv2.putText(frame, "{}: {}".format(el, obj_counter[el]), (15, y_pos + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (255, 25, 25), 2)
-                        y_pos += 20
+                        if obj_counter[el] > 0:
+                            cv2.putText(frame, "{}: {}".format(el, obj_counter[el]), (15, y_pos + 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (255, 25, 25), 2)
+                            y_pos += 20
 
                 # Tracking
                 if opt.track:
@@ -398,7 +399,8 @@ if __name__ == "__main__":
 
     opt = parser.parse_args()
 
-    #opt.path = r"C:\Users\daniel\Desktop\video_test.mp4"
+    # FOR A QUICK DEBUG
+    #opt.path = r"C:\Users\daniel\Documents\GitHub Repositories\ComputerVisionProject\TEST_VIDEO.mp4"
     #opt.source = "video"
     #opt.jetson = True
     #opt.verbose = True
